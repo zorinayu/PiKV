@@ -1,39 +1,72 @@
 # PiKV - Parallel Distributed MoE KV Cache Design
 
-# PiKV: Parallel Distributed MoE KV Cache Design
-
-PiKV (Parallel Distributed Mixture of Experts Key-Value Cache Design) is an advanced framework aimed at optimizing the management and compression of Key-Value (KV) caches in distributed Mixture of Experts (MoE) models. By leveraging parallel and distributed strategies, PiKV enhances inference efficiency and reduces resource consumption in large-scale MoE deployments.
+PiKV (Parallel Distributed Mixture of Experts Key-Value Cache Design) is an advanced framework designed to optimize the management and compression of Key-Value (KV) caches in distributed Mixture of Experts (MoE) models. By leveraging parallel and distributed strategies, PiKV enhances inference efficiency and reduces memory and compute overhead in large-scale MoE deployments.
 
 ## Features
 
-- **Parallel Prefetching and Communication Overlap**: PiKV employs a strategy that overlaps memory read operations for model weights and KV-cache with collective communication operations, effectively hiding communication latency and improving inference efficiency. This approach is inspired by the PRESERVE framework, which demonstrated up to 1.6× end-to-end speedup on state-of-the-art, open-source LLMs. :contentReference[oaicite:0]{index=0}
+- **Parallel Prefetching and Communication Overlap**: PiKV overlaps memory read operations for model weights and KV-cache with collective communication, effectively hiding communication latency and improving throughput. This is inspired by the PRESERVE framework.
 
-- **Dynamic KV Cache Compression**: Utilizing the Pyramidal Information Funneling pattern observed in attention mechanisms, PiKV dynamically adjusts the KV cache size across different layers. More cache is allocated to lower layers where attention is more dispersed, and less to higher layers where attention focuses on critical tokens. This method significantly reduces memory usage while maintaining model performance, as demonstrated by PyramidKV. :contentReference[oaicite:1]{index=1}
+- **Dynamic KV Cache Compression**: PiKV uses attention-based pyramidal patterns to allocate more KV memory to lower layers and less to higher layers, following the insights from PyramidKV.
 
-- **Query-Aware KV Cache Selection**: By evaluating the criticality of KV cache pages using query vectors, PiKV loads only the most important KV cache pages for attention computation. This query-aware sparsity approach significantly speeds up self-attention without sacrificing accuracy, achieving up to 2.23× speedup. :contentReference[oaicite:2]{index=2}
+- **Query-Aware KV Cache Selection**: PiKV prioritizes important tokens for caching using query-attention relevance, loading only the most critical KV pairs, as proposed in Quest.
 
-- **KV Cache Streaming**: PiKV introduces an efficient KV cache streaming mechanism that enables rapid state recovery and fault tolerance, ensuring stable operation in distributed environments. This design is influenced by the MOONCAKE architecture, which features a KVCache-centric disaggregated architecture for serving LLM chatbots. :contentReference[oaicite:3]{index=3}
+- **KV Cache Streaming**: PiKV supports efficient KV streaming and checkpoint recovery using techniques influenced by MOONCAKE, enabling fast failover and state persistence in distributed inference.
 
-- **Memory Expansion Techniques**: Leveraging technologies like Compute Express Link (CXL), PiKV stores KV caches in expanded memory, alleviating GPU memory limitations and enhancing service capacity. Studies have shown that CXL-based KV cache storage can achieve competitive time-to-first-token (TTFT) performance, making it a promising solution for large-scale LLM serving. :contentReference[oaicite:4]{index=4}
+- **Memory Expansion Techniques**: Leveraging CXL-based memory disaggregation, PiKV enables KV cache offloading to host or external memory, reducing GPU memory bottlenecks.
 
 ## Mathematical Formulation
 
-### Dynamic KV Cache Allocation
+### Dynamic KV Allocation
 
-The allocation of KV cache across different layers is guided by the attention distribution patterns. Let \( L \) denote the total number of layers, and \( C_i \) represent the cache size allocated to the \( i \)-th layer. The allocation follows an arithmetic sequence:
+Let the total number of layers be \( L \), and the cache size for layer \( i \) be \( C_i \). A pyramidal allocation policy is defined as:
 
 \[
 C_i = C_1 - (i - 1) \cdot d
 \]
 
-where \( C_1 \) is the cache size for the first layer, and \( d \) is the common difference determined based on the total cache budget and the desired pyramidal shape.
+Where \( C_1 \) is the cache size at the bottom layer and \( d \) is the step decrement.
 
-### Query-Aware KV Cache Selection
+### Query-Aware Token Importance
 
-For each token \( t \) in the sequence, an importance score \( I_t \) is computed to determine its relevance:
+To compute the importance \( I_t \) of token \( t \):
 
 \[
-I_t = \sum_{h=1}^{H} \text{softmax}\left( \frac{Q_h K_t^\top}{\sqrt{d_k}} \right)
+I_t = \sum_{h=1}^{H} \text{softmax}\left( \frac{Q_h K_t^T}{\sqrt{d_k}} \right)
 \]
 
-where \( H \) is the number of attention heads, \( Q_h \) is the query vector for head \( h \), \( K_t \) is the key vector for token \( t \), and \( d_k \) is the dimension of the key vectors. Tokens with higher \( I_t \) are prioritized in the KV cache.
+Where \( Q_h \) is the query vector of attention head \( h \), and \( K_t \) is the key vector of token \( t \).
+
+## Usage Example
+
+```python
+from pikv import PiKVCache
+
+pikv_cache = PiKVCache(model_cfg, runtime_cfg)
+
+for step in range(seq_len):
+    q, k, v = get_current_step_kv()
+    pikv_cache.update(layer_id, token_id, k, v)
+    context_kv = pikv_cache.retrieve(layer_id)
+```
+
+## Architecture
+
+PiKV supports the following core modules:
+
+- `ExpertKVCache`: per-expert low-rank sliding cache
+- `Router`: latency-aware top-k expert selection
+- `Compressor`: LoRA + INT8/4 quantization
+- `Streamer`: stateful KV streaming and checkpointing
+
+## Citation
+
+If you use PiKV in your work, please cite:
+
+```bibtex
+@misc{pikv2024,
+  title={PiKV: Parallel Distributed MoE KV Cache Design},
+  author={Dong Liu},
+  year={2024},
+  howpublished={\url{https://github.com/your_org/pikv}}
+}
+```
