@@ -18,7 +18,7 @@ PiKV (Parallel Distributed Mixture of Experts Key-Value Cache Design) is an adva
 
 ### Dynamic KV Allocation
 
-Let the total number of layers be $ L $, and the cache size for layer $ i $ be $$ C_i $$. A pyramidal allocation policy is defined as:
+Let the total number of layers be \( L \), and the cache size for layer $ i $ be $$ C_i $$. A pyramidal allocation policy is defined as:
 
 $$
 C_i = C_1 - (i - 1) \cdot d
