@@ -18,23 +18,23 @@ PiKV (Parallel Distributed Mixture of Experts Key-Value Cache Design) is an adva
 
 ### Dynamic KV Allocation
 
-Let the total number of layers be \( L \), and the cache size for layer \( i \) be \( C_i \). A pyramidal allocation policy is defined as:
+Let the total number of layers be $ L $, and the cache size for layer $ i $ be $ C_i $. A pyramidal allocation policy is defined as:
 
 $$
 C_i = C_1 - (i - 1) \cdot d
 $$
 
-Where \( C_1 \) is the cache size at the bottom layer and \( d \) is the step decrement.
+Where $ C_1 $ is the cache size at the bottom layer and $ d $ is the step decrement.
 
 ### Query-Aware Token Importance
 
-To compute the importance \( I_t \) of token \( t \):
+To compute the importance $ I_t $ of token $ t $:
 
 $$
 I_t = \sum_{h=1}^{H} \text{softmax}\left( \frac{Q_h K_t^T}{\sqrt{d_k}} \right)
 $$
 
-Where \( Q_h \) is the query vector of attention head \( h \), and \( K_t \) is the key vector of token \( t \).
+Where $ Q_h $ is the query vector of attention head $ h $, and $ K_t $ is the key vector of token $ t $.
 
 ## Usage Example
 
