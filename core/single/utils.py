@@ -13,6 +13,9 @@ def generate_data(batch_size, input_size):
 
 def train_model(model, data, target, retain_graph=False):
     """Training loop."""
+    # Enable anomaly detection to help debug gradient computation issues
+    torch.autograd.set_detect_anomaly(True)
+    
     # Clone the data to create a new computation graph
     data_clone = data.clone().detach()
     target_clone = target.clone().detach()
@@ -23,8 +26,12 @@ def train_model(model, data, target, retain_graph=False):
     optimizer.zero_grad()
     output = model(data_clone)
     loss = criterion(output, target_clone)
-    loss.backward(retain_graph=retain_graph)
+    loss.backward(retain_graph=retain_graph)  # 使用 retain_graph 参数
     optimizer.step()
+    
+    # Disable anomaly detection after training
+    torch.autograd.set_detect_anomaly(False)
+    
     return loss.item()
 
 def get_memory_usage():
@@ -89,12 +96,16 @@ def compare_performance(model_pikv, model_standard, data, target, num_runs=5):
     
     # Measure PiKV performance
     for _ in range(num_runs):
+        # Create new data tensors for each run to avoid graph conflicts
+        data_pikv = data.clone().detach()
+        target_pikv = target.clone().detach()
+        
         # Record initial memory
         initial_memory = get_memory_usage()
         
         # Time the forward pass
         start_time = time.time()
-        loss_pikv = train_model(model_pikv, data, target, retain_graph=True)
+        loss_pikv = train_model(model_pikv, data_pikv, target_pikv, retain_graph=False)
         end_time = time.time()
         
         # Record final memory
@@ -107,12 +118,16 @@ def compare_performance(model_pikv, model_standard, data, target, num_runs=5):
     
     # Measure Standard MoE performance
     for _ in range(num_runs):
+        # Create new data tensors for each run to avoid graph conflicts
+        data_standard = data.clone().detach()
+        target_standard = target.clone().detach()
+        
         # Record initial memory
         initial_memory = get_memory_usage()
         
         # Time the forward pass
         start_time = time.time()
-        loss_standard = train_model(model_standard, data, target, retain_graph=False)
+        loss_standard = train_model(model_standard, data_standard, target_standard, retain_graph=False)
         end_time = time.time()
         
         # Record final memory
@@ -148,7 +163,7 @@ def compare_performance(model_pikv, model_standard, data, target, num_runs=5):
 def plot_performance_comparison(results, save_path=None):
     """Plot performance comparison between models."""
     metrics = ['time', 'memory', 'loss']
-    model_types = ['pikv', 'standard']
+    model_types = ['pikv', 'standard', 'lora']
     
     plt.figure(figsize=(15, 5))
     
@@ -156,7 +171,7 @@ def plot_performance_comparison(results, save_path=None):
         plt.subplot(1, 3, i+1)
         
         values = [results[model_type][f'avg_{metric}'] for model_type in model_types]
-        plt.bar(model_types, values, color=['blue', 'green'], alpha=0.7)
+        plt.bar(model_types, values, color=['blue', 'green', 'red'], alpha=0.7)
         
         plt.title(f'Average {metric.capitalize()}')
         plt.ylabel(metric.capitalize())
