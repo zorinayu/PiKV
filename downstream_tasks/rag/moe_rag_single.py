@@ -25,6 +25,12 @@ class MoERAG(nn.Module):
         self.base_model = AutoModel.from_pretrained(base_model)
         self.tokenizer = AutoTokenizer.from_pretrained(base_model)
         
+        # Get embedding dimension from base model
+        self.embedding_dim = self.base_model.config.hidden_size
+        
+        # Initialize projection layer to match MoE input dimension
+        self.projection = nn.Linear(self.embedding_dim, 256)  # 256 is the hidden_size in config
+        
         # Initialize MoE components
         self.use_lora = use_lora
         if use_lora:
@@ -53,39 +59,69 @@ class MoERAG(nn.Module):
             batch_size = last_hidden_states.shape[0]
             return last_hidden_states[torch.arange(batch_size, device=last_hidden_states.device), sequence_lengths]
     
+    def project_embedding(self, embedding: torch.Tensor) -> torch.Tensor:
+        """Project embedding to MoE input dimension."""
+        if embedding.dim() == 1:
+            embedding = embedding.unsqueeze(0)
+        # 确保输入维度正确
+        if embedding.size(-1) != self.embedding_dim:
+            embedding = embedding.view(-1, self.embedding_dim)
+        return self.projection(embedding)
+    
     def cache_document(self, doc_id: str, doc_embedding: torch.Tensor):
         """Cache document embeddings with importance scores."""
         if doc_id not in self.document_cache:
+            # Project document embedding to match query embedding dimension
+            projected_embedding = self.project_embedding(doc_embedding)
             self.document_cache[doc_id] = {
-                'embedding': doc_embedding.detach(),
+                'embedding': projected_embedding.detach(),
                 'importance': torch.ones(1, device=doc_embedding.device)
             }
     
     def cache_query(self, query_id: str, query_embedding: torch.Tensor):
         """Cache query embeddings with importance scores."""
         if query_id not in self.query_cache:
+            # Project query embedding to match document embedding dimension
+            projected_embedding = self.project_embedding(query_embedding)
             self.query_cache[query_id] = {
-                'embedding': query_embedding.detach(),
+                'embedding': projected_embedding.detach(),
                 'importance': torch.ones(1, device=query_embedding.device)
             }
     
+    def compute_similarity(self, query_embedding: torch.Tensor, doc_embedding: torch.Tensor) -> torch.Tensor:
+        """Compute similarity between query and document embeddings."""
+        # Ensure both embeddings are in the same dimension
+        if query_embedding.dim() == 1:
+            query_embedding = query_embedding.unsqueeze(0)
+        if doc_embedding.dim() == 1:
+            doc_embedding = doc_embedding.unsqueeze(0)
+        
+        # Normalize embeddings
+        query_embedding = F.normalize(query_embedding, p=2, dim=1)
+        doc_embedding = F.normalize(doc_embedding, p=2, dim=1)
+        
+        # Compute cosine similarity
+        similarity = torch.mm(query_embedding, doc_embedding.t()).squeeze()
+        return similarity
+    
     def retrieve(self, query_embedding: torch.Tensor, top_k: int = 5) -> List[Dict]:
         """Retrieve relevant documents using MoE-based retrieval."""
-        # Normalize query embedding
-        query_embedding = F.normalize(query_embedding, p=2, dim=1)
+        # Project query embedding to match document embedding dimension
+        projected_query = self.project_embedding(query_embedding)
         
         # Process through MoE
-        moe_output = self.moe(query_embedding)
+        moe_output = self.moe(projected_query)
         
         # Calculate similarity scores
         scores = []
         for doc_id, cache in self.document_cache.items():
             doc_embedding = cache['embedding']
-            doc_embedding = F.normalize(doc_embedding, p=2, dim=1)
             
-            # Combine base similarity with MoE-enhanced similarity
-            base_similarity = (query_embedding @ doc_embedding.T).squeeze()
-            moe_similarity = (moe_output @ doc_embedding.T).squeeze()
+            # Compute base similarity
+            base_similarity = self.compute_similarity(projected_query, doc_embedding)
+            
+            # Compute MoE-enhanced similarity
+            moe_similarity = self.compute_similarity(moe_output, doc_embedding)
             
             # Weighted combination of similarities
             final_score = 0.7 * base_similarity + 0.3 * moe_similarity
@@ -104,12 +140,11 @@ class MoERAG(nn.Module):
         # Get base embeddings
         embeddings = self.get_embedding(input_ids, attention_mask)
         
-        # Ensure embeddings have the correct shape for MoE
-        if embeddings.dim() == 1:
-            embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
+        # Project embeddings to match MoE input dimension
+        projected_embeddings = self.project_embedding(embeddings)
         
         # Process through MoE
-        moe_output = self.moe(embeddings)
+        moe_output = self.moe(projected_embeddings)
         
         # Cache embeddings if doc_id is provided
         if doc_id is not None:

@@ -6,7 +6,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(project_root)
 
 import torch
-from downstream_tasks.rag.moe_rag import MoERAG, MoERAGPipeline
+from downstream_tasks.rag.moe_rag_single import MoERAG, MoERAGPipeline
 
 def main():
     # 初始化模型
