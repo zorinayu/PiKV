@@ -104,6 +104,10 @@ class MoERAG(nn.Module):
         # Get base embeddings
         embeddings = self.get_embedding(input_ids, attention_mask)
         
+        # Ensure embeddings have the correct shape for MoE
+        if embeddings.dim() == 1:
+            embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
+        
         # Process through MoE
         moe_output = self.moe(embeddings)
         
@@ -124,7 +128,7 @@ class MoERAGPipeline:
     
     def process_document(self, text: str, doc_id: str):
         """Process and cache a document."""
-        inputs = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+        inputs = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=4096)
         with torch.no_grad():
             self.model(
                 input_ids=inputs['input_ids'],
@@ -135,7 +139,7 @@ class MoERAGPipeline:
     
     def process_query(self, query: str, query_id: str, top_k: int = 5):
         """Process a query and retrieve relevant documents."""
-        inputs = self.tokenizer(query, return_tensors="pt", padding=True, truncation=True)
+        inputs = self.tokenizer(query, return_tensors="pt", padding=True, truncation=True, max_length=4096)
         with torch.no_grad():
             query_embedding = self.model(
                 input_ids=inputs['input_ids'],
