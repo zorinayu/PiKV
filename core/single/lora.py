@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from config import config
+from .config import config
 import math
-from pikv_moe import ExternalMemoryCache
+from .pikv_moe import ExternalMemoryCache
 
 class LoRALayer(nn.Module):
     """
