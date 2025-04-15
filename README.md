@@ -63,10 +63,10 @@ PiKV supports the following core modules:
 If you use PiKV in your work, please cite:
 
 ```bibtex
-@misc{pikv2024,
+@misc{pikv2025,
   title={PiKV: Parallel Distributed MoE KV Cache Design},
   author={Dong Liu},
-  year={2024},
-  howpublished={\url{https://github.com/your_org/pikv}}
+  year={2025},
+  howpublished={\url{https://github.com/NoakLiu/PiKV}}
 }
 ```
