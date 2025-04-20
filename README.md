@@ -30,6 +30,10 @@ pip install -r requirements.txt
 
 ## Usage
 
+```bash
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+```
+
 ### 1. LLM Next Token Prediction
 
 ```bash
