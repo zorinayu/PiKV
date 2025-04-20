@@ -1,4 +1,8 @@
+import os
+import sys
 import torch
+import argparse
+from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
@@ -7,9 +11,11 @@ from core.single.pikv_moe import PiKVMoE
 from core.single.normal_moe import StandardMoE
 from core.distributed.distributed_pikv import DistributedPiKVManager
 from llm_config import llm_config as config
-import os
-from tqdm import tqdm
 import math
+
+# Add the project root directory to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(project_root)
 
 class TextDataset(Dataset):
     def __init__(self, file_path, tokenizer, max_length):
@@ -58,7 +64,7 @@ def train_single_model(model_type='pikv'):
     
     # Initialize model
     if model_type == 'pikv':
-        model = PiKVMoE().to(device)
+        model = PiKVMoE(rank=4, alpha=1.0).to(device)
     else:
         model = StandardMoE().to(device)
     
@@ -189,7 +195,7 @@ def evaluate_model(model_type='pikv', distributed=False):
     else:
         # Load model
         if model_type == 'pikv':
-            model = PiKVMoE().to(device)
+            model = PiKVMoE(rank=4, alpha=1.0).to(device)
         else:
             model = StandardMoE().to(device)
         
@@ -233,28 +239,53 @@ def evaluate_model(model_type='pikv', distributed=False):
         'perplexity': perplexity
     }
 
+def main():
+    parser = argparse.ArgumentParser(description='Train PiKV models for next token prediction')
+    parser.add_argument('--model_type', type=str, choices=['single', 'distributed'], required=True,
+                      help='Type of model to train')
+    parser.add_argument('--use_lora', action='store_true',
+                      help='Use LoRA for fine-tuning')
+    parser.add_argument('--epochs', type=int, default=10,
+                      help='Number of training epochs')
+    parser.add_argument('--learning_rate', type=float, default=1e-4,
+                      help='Learning rate')
+    parser.add_argument('--batch_size', type=int, default=32,
+                      help='Batch size')
+    args = parser.parse_args()
+    
+    # Load and preprocess data
+    # TODO: Implement data loading
+    train_data = []
+    test_data = []
+    
+    if args.model_type == 'single':
+        # Train both PiKV and Standard MoE
+        pikv_model = PiKVMoE(rank=4, alpha=1.0)
+        standard_model = StandardMoE()
+        
+        print("Training PiKV model...")
+        pikv_model = train_single_model('pikv')
+        
+        print("\nTraining Standard MoE model...")
+        standard_model = train_single_model('standard')
+        
+        # Evaluate both models
+        print("\nEvaluating models...")
+        pikv_metrics = evaluate_model('pikv')
+        standard_metrics = evaluate_model('standard')
+        
+        print(f"\nPiKV Model - Loss: {pikv_metrics['loss']:.4f}, Accuracy: {pikv_metrics['accuracy']:.2f}%")
+        print(f"Standard MoE Model - Loss: {standard_metrics['loss']:.4f}, Accuracy: {standard_metrics['accuracy']:.2f}%")
+    
+    else:  # distributed
+        print("Training distributed PiKV model...")
+        manager = train_distributed_model()
+        
+        # Evaluate distributed model
+        print("\nEvaluating distributed model...")
+        distributed_metrics = evaluate_model(distributed=True)
+        
+        print(f"\nDistributed PiKV Model - Loss: {distributed_metrics['loss']:.4f}, Accuracy: {distributed_metrics['accuracy']:.2f}%")
+
 if __name__ == '__main__':
-    # Train single models
-    print("Training PiKV model...")
-    train_single_model('pikv')
-    print("Training Standard MoE model...")
-    train_single_model('standard')
-    
-    # Train distributed model
-    print("Training Distributed PiKV model...")
-    train_distributed_model()
-    
-    # Evaluate all models
-    print("Evaluating PiKV model...")
-    pikv_metrics = evaluate_model('pikv')
-    print("Evaluating Standard MoE model...")
-    standard_metrics = evaluate_model('standard')
-    print("Evaluating Distributed PiKV model...")
-    distributed_metrics = evaluate_model(distributed=True)
-    
-    # Print comparison
-    print("\nModel Comparison:")
-    print(f"{'Metric':<15} {'PiKV':<15} {'Standard MoE':<15} {'Distributed PiKV':<15}")
-    print("-" * 60)
-    for metric in ['loss', 'accuracy', 'perplexity']:
-        print(f"{metric:<15} {pikv_metrics[metric]:<15.4f} {standard_metrics[metric]:<15.4f} {distributed_metrics[metric]:<15.4f}") 
+    main() 

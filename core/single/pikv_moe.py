@@ -5,6 +5,7 @@ from .config import config
 from .kv_cache_compression import KVCacheCompressor
 from .routing_strategy import AdaptiveRouter
 from .lora import LoRALayer, LoRAExpert, LoRAKVCache
+from .shared import ExternalMemoryCache
 import math
 
 class KVCache(nn.Module):
@@ -58,27 +59,6 @@ class KVCache(nn.Module):
     def set_all(self, data):
         if data is not None:
             self.values.copy_(data.unsqueeze(0).expand(self.size, -1))
-
-class ExternalMemoryCache(nn.Module):
-    """
-    External memory cache using CXL-based memory disaggregation.
-    """
-    def __init__(self):
-        super(ExternalMemoryCache, self).__init__()
-        self.cache = {}
-        self.max_size = config.get('external_cache_size', 1000000)
-    
-    def get(self, key):
-        return self.cache.get(key)
-    
-    def put(self, key, value):
-        if len(self.cache) >= self.max_size:
-            # Remove least recently used item
-            self.cache.pop(next(iter(self.cache)))
-        self.cache[key] = value
-    
-    def clear(self):
-        self.cache.clear()
 
 class PiKVMoE(nn.Module):
     def __init__(self, rank=4, alpha=1.0):
