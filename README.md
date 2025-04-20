@@ -14,6 +14,89 @@ PiKV (Parallel Distributed Mixture of Experts Key-Value Cache Design) is an adva
 
 - **Memory Expansion Techniques**: Leveraging CXL-based memory disaggregation, PiKV enables KV cache offloading to host or external memory, reducing GPU memory bottlenecks.
 
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/NoakLiu/PiKV.git
+cd PiKV
+
+# Install the package in development mode
+pip install -e .
+
+# Install additional dependencies
+pip install -r requirements.txt
+```
+
+## Usage
+
+### 1. LLM Next Token Prediction
+
+```bash
+# Generate training and testing data
+python downstream_tasks/llm/next_tok_pred/generate_data.py
+
+# Train single-node model with LoRA
+python downstream_tasks/llm/next_tok_pred/train_llm.py --model_type single --use_lora
+
+# Train distributed model with LoRA (using 4 GPUs)
+torchrun --nproc_per_node=4 downstream_tasks/llm/next_tok_pred/train_llm.py --model_type distributed --use_lora
+```
+
+### 2. Text Classification
+
+```bash
+# Train single-node model
+python downstream_tasks/text_classification/train.py --model_type single --use_lora
+
+# Train distributed model
+torchrun --nproc_per_node=4 downstream_tasks/text_classification/train.py --model_type distributed --use_lora
+```
+
+### 3. Question Answering
+
+```bash
+# Train single-node model
+python downstream_tasks/qa/train.py --model_type single --use_lora
+
+# Train distributed model
+torchrun --nproc_per_node=4 downstream_tasks/qa/train.py --model_type distributed --use_lora
+```
+
+### Command Line Arguments
+
+Common arguments for all tasks:
+
+- `--model_type`: Model type (`single` or `distributed`)
+- `--use_lora`: Enable LoRA fine-tuning
+- `--rank`: LoRA rank (default: 4)
+- `--alpha`: LoRA alpha (default: 1.0)
+- `--batch_size`: Batch size (default: 32)
+- `--learning_rate`: Learning rate (default: 1e-4)
+- `--num_epochs`: Number of training epochs (default: 10)
+
+### Distributed Training Configuration
+
+For distributed training, you can set the following environment variables:
+
+```bash
+# Set distributed training parameters
+export WORLD_SIZE=4
+export RANK=0
+export MASTER_ADDR=localhost
+export MASTER_PORT=12345
+
+# Run distributed training
+torchrun --nproc_per_node=$WORLD_SIZE \
+    --nnodes=1 \
+    --node_rank=$RANK \
+    --master_addr=$MASTER_ADDR \
+    --master_port=$MASTER_PORT \
+    downstream_tasks/llm/next_tok_pred/train_llm.py \
+    --model_type distributed \
+    --use_lora
+```
+
 ## Mathematical Formulation
 
 ### Dynamic KV Allocation
