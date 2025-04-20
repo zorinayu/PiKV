@@ -2,15 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .config import config
+from .kv_cache_compression import KVCacheCompressor
+from .routing_strategy import AdaptiveRouter
+from .lora import LoRALayer, LoRAExpert, LoRAKVCache
 import math
-
-class Expert(nn.Module):
-    def __init__(self):
-        super(Expert, self).__init__()
-        self.dense = nn.Linear(config['hidden_size'], config['hidden_size'])
-
-    def forward(self, x):
-        return F.relu(self.dense(x))
 
 class KVCache(nn.Module):
     """
@@ -25,7 +20,21 @@ class KVCache(nn.Module):
         self.register_buffer('keys', torch.zeros(size, self.hidden_size))
         self.register_buffer('values', torch.zeros(size, self.hidden_size))
         self.register_buffer('importance', torch.zeros(size))
-        self.initialized = True
+        
+        # Initialize compressor
+        self.compressor = KVCacheCompressor(
+            hidden_size=self.hidden_size,
+            compression_type='pyramid',
+            compression_ratio=0.5
+        )
+        
+        # Initialize LoRA for cache values
+        self.value_lora = LoRALayer(
+            self.hidden_size,
+            self.hidden_size,
+            rank=4,
+            alpha=1.0
+        )
     
     def update(self, idx, key, value, importance):
         # Update cache at the specified index
@@ -34,7 +43,17 @@ class KVCache(nn.Module):
         self.importance[idx] = importance.mean().item()
     
     def get_all(self):
-        return self.values.mean(dim=0)  # Return average of all cached values
+        # Apply compression to cached values
+        compressed_keys, compressed_values = self.compressor(
+            self.keys.unsqueeze(0),
+            self.values.unsqueeze(0),
+            self.importance.unsqueeze(0)
+        )
+        
+        # Apply LoRA to compressed values
+        compressed_values = compressed_values + self.value_lora(compressed_values)
+        
+        return compressed_values.squeeze(0).mean(dim=0)  # Return average of compressed values
     
     def set_all(self, data):
         if data is not None:
@@ -62,14 +81,26 @@ class ExternalMemoryCache(nn.Module):
         self.cache.clear()
 
 class PiKVMoE(nn.Module):
-    def __init__(self):
+    def __init__(self, rank=4, alpha=1.0):
         super(PiKVMoE, self).__init__()
-        self.experts = nn.ModuleList([Expert() for _ in range(config['num_experts'])])
-        self.gate = nn.Linear(config['hidden_size'], config['num_experts'])
+        self.experts = nn.ModuleList([
+            LoRAExpert(config['hidden_size'], rank=rank, alpha=alpha)
+            for _ in range(config['num_experts'])
+        ])
         
-        # Query-aware KV cache selection
+        # Initialize adaptive router with LoRA
+        self.router = AdaptiveRouter(
+            hidden_size=config['hidden_size'],
+            num_experts=config['num_experts'],
+            top_k=2,
+            temperature=1.0
+        )
+        
+        # Query-aware KV cache selection with LoRA
         self.query_proj = nn.Linear(config['hidden_size'], config['hidden_size'])
         self.key_proj = nn.Linear(config['hidden_size'], config['hidden_size'])
+        self.query_lora = LoRALayer(config['hidden_size'], config['hidden_size'], rank=rank, alpha=alpha)
+        self.key_lora = LoRALayer(config['hidden_size'], config['hidden_size'], rank=rank, alpha=alpha)
         
         # Cache size allocation for each layer
         self.cache_sizes = self.pyramidal_cache_allocation()
@@ -81,9 +112,6 @@ class PiKVMoE(nn.Module):
         
         # Cache pointers for each expert
         self.register_buffer('cache_ptrs', torch.zeros(config['num_experts'], dtype=torch.long))
-        
-        # Compression ratio for dynamic KV cache compression
-        self.compression_ratio = 1.0
         
         # Memory expansion flag
         self.use_memory_expansion = config.get('use_memory_expansion', False)
@@ -102,9 +130,15 @@ class PiKVMoE(nn.Module):
         """
         Compute importance scores for tokens based on query-key attention.
         """
-        # Project query and key
-        query = self.query_proj(query)
-        key = self.key_proj(key)
+        # Project query and key with LoRA
+        query_base = self.query_proj(query)
+        key_base = self.key_proj(key)
+        
+        query_lora = self.query_lora(query)
+        key_lora = self.key_lora(key)
+        
+        query = query_base + query_lora
+        key = key_base + key_lora
         
         # Compute attention scores
         attention_scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(config['hidden_size'])
@@ -122,12 +156,6 @@ class PiKVMoE(nn.Module):
         cache = self.kv_caches[expert_idx]
         ptr = self.cache_ptrs[expert_idx]
         
-        # Apply dynamic compression based on importance
-        if importance.mean() > 0.5:  # High importance tokens
-            self.compression_ratio = 1.0  # No compression
-        else:
-            self.compression_ratio = 0.5  # Compress by half
-        
         # Update cache with new key-value pair
         cache.update(ptr, key, value, importance)
         
@@ -135,22 +163,19 @@ class PiKVMoE(nn.Module):
         self.cache_ptrs[expert_idx] = (ptr + 1) % cache.size
     
     def forward(self, x, query=None):
-        # Calculate gate scores
-        gate_scores = self.gate(x)
-        gate_probs = F.softmax(gate_scores, dim=-1)
+        # Calculate gate scores using adaptive router
+        routing_weights, expert_indices, top_k_weights, lb_loss, importance = self.router(x)
         
         # If query is provided, compute token importance
         if query is not None:
             importance = self.compute_token_importance(query, x)
-        else:
-            importance = torch.ones(x.size(0), x.size(1), device=x.device)
         
         # Initialize output tensor
         expert_output = torch.zeros_like(x)
         
         # Process each expert
         for i, expert in enumerate(self.experts):
-            # Get expert output
+            # Get expert output with LoRA
             expert_output_i = expert(x)
             
             # Get cached values
@@ -163,14 +188,14 @@ class PiKVMoE(nn.Module):
             # Update cache with new values
             self.update_cache(i, x.detach(), expert_output_i.detach(), importance.detach())  # Detach inputs to cache
             
-            # Add to final output weighted by gate probabilities
-            expert_output += expert_output_i * gate_probs[:, i].unsqueeze(-1)
+            # Add to final output weighted by routing probabilities
+            expert_output += expert_output_i * routing_weights[:, :, i].unsqueeze(-1)
         
-        return expert_output
+        return expert_output, lb_loss
     
     def save_checkpoint(self, path):
         """
-        Save model checkpoint with KV caches.
+        Save model checkpoint with KV caches and LoRA parameters.
         """
         checkpoint = {
             'model_state_dict': self.state_dict(),
@@ -181,7 +206,7 @@ class PiKVMoE(nn.Module):
     
     def load_checkpoint(self, path):
         """
-        Load model checkpoint with KV caches.
+        Load model checkpoint with KV caches and LoRA parameters.
         """
         checkpoint = torch.load(path)
         self.load_state_dict(checkpoint['model_state_dict'])
