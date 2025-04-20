@@ -62,6 +62,28 @@ Input sequence: [1, 2, 3, 4, 5, 6, 7]
 Predicted next token: 9
 ```
 
+```
+(mka) jovyan@w-lenge-large-4ceda59b6605447685173387f3a3f682-6d7cd77666-tk4vq:~/workspace/PiKV$ python downstream_tasks/llm/next_tok_pred/s_transformers.py 
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+
+Prompt: The quick brown fox
+
+Generated: The quick brown foxes that are so popular with young children are in fact very similar to the foxes that are used in the wild. A fox is a fox that has a very long, long tail and is much larger than a human.
+
+The foxes
+
+Prompt: Once upon a time
+Generated: Once upon a time, the world was filled with the endless stream of stars, and the universe was filled with stars. The universe was filled with stars. And the universe was filled with stars. And the universe was filled with stars. And the universe was filled with stars
+
+Prompt: In a galaxy far far away
+Generated: In a galaxy far far away, the world's first space station is located in the middle of a desert. A pair of huge red eyes meet in the sky.
+
+"You're right. I'm a little bit surprised that you're here, but you're a human
+```
+
 ### 2. RAG (Retrieval-Augmented Generation)
 
 ```bash
