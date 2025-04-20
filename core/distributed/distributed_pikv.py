@@ -4,8 +4,8 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.cuda.amp import autocast, GradScaler
 import torch.nn.functional as F
-from distributed_config import distributed_config as dconfig
-from config import config
+from .distributed_config import distributed_config as dconfig
+from .config import config
 from ..single.lora import LoRALayer, LoRAExpert, LoRAKVCache
 from ..single.kv_cache_compression import KVCacheCompressor
 from ..single.routing_strategy import AdaptiveRouter
