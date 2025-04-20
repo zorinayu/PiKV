@@ -43,24 +43,50 @@ python downstream_tasks/llm/next_tok_pred/train_llm.py --model_type single --use
 torchrun --nproc_per_node=4 downstream_tasks/llm/next_tok_pred/train_llm.py --model_type distributed --use_lora
 ```
 
-### 2. Text Classification
+### 2. RAG (Retrieval-Augmented Generation)
 
 ```bash
-# Train single-node model
-python downstream_tasks/text_classification/train.py --model_type single --use_lora
+# Prepare RAG data
+python downstream_tasks/rag/prepare_data.py --dataset_name wikipedia --chunk_size 512
 
-# Train distributed model
-torchrun --nproc_per_node=4 downstream_tasks/text_classification/train.py --model_type distributed --use_lora
+# Train single-node RAG model
+python downstream_tasks/rag/train.py \
+    --model_type single \
+    --use_lora \
+    --retriever_type dense \
+    --index_type faiss \
+    --embedding_dim 768
+
+# Train distributed RAG model
+torchrun --nproc_per_node=4 downstream_tasks/rag/train.py \
+    --model_type distributed \
+    --use_lora \
+    --retriever_type dense \
+    --index_type faiss \
+    --embedding_dim 768
 ```
 
-### 3. Question Answering
+### 3. Vision Tasks
 
 ```bash
-# Train single-node model
-python downstream_tasks/qa/train.py --model_type single --use_lora
+# Prepare vision dataset
+python downstream_tasks/vision/prepare_data.py --dataset_name imagenet --image_size 224
 
-# Train distributed model
-torchrun --nproc_per_node=4 downstream_tasks/qa/train.py --model_type distributed --use_lora
+# Train single-node vision model
+python downstream_tasks/vision/train.py \
+    --model_type single \
+    --use_lora \
+    --task classification \
+    --backbone vit \
+    --image_size 224
+
+# Train distributed vision model
+torchrun --nproc_per_node=4 downstream_tasks/vision/train.py \
+    --model_type distributed \
+    --use_lora \
+    --task classification \
+    --backbone vit \
+    --image_size 224
 ```
 
 ### Command Line Arguments
@@ -74,6 +100,17 @@ Common arguments for all tasks:
 - `--batch_size`: Batch size (default: 32)
 - `--learning_rate`: Learning rate (default: 1e-4)
 - `--num_epochs`: Number of training epochs (default: 10)
+
+RAG-specific arguments:
+- `--retriever_type`: Type of retriever (`dense` or `sparse`)
+- `--index_type`: Type of index (`faiss` or `annoy`)
+- `--embedding_dim`: Dimension of embeddings
+- `--chunk_size`: Size of text chunks for retrieval
+
+Vision-specific arguments:
+- `--task`: Vision task type (`classification`, `detection`, or `segmentation`)
+- `--backbone`: Backbone model (`vit`, `resnet`, or `efficientnet`)
+- `--image_size`: Input image size
 
 ### Distributed Training Configuration
 
