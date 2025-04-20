@@ -34,10 +34,20 @@ class LoRAExpert(nn.Module):
     """
     def __init__(self, hidden_size, rank=4, alpha=1.0):
         super(LoRAExpert, self).__init__()
+        self.hidden_size = hidden_size
         self.dense = nn.Linear(hidden_size, hidden_size)
         self.lora = LoRALayer(hidden_size, hidden_size, rank=rank, alpha=alpha)
         
     def forward(self, x):
+        # Reshape input if needed
+        if len(x.shape) == 2:  # [batch_size, seq_len]
+            # Project to hidden size
+            x = x.unsqueeze(-1).expand(-1, -1, self.hidden_size)  # [batch_size, seq_len, hidden_size]
+            x = x.mean(dim=1)  # [batch_size, hidden_size]
+        elif len(x.shape) == 1:  # [seq_len]
+            x = x.unsqueeze(0).unsqueeze(-1).expand(-1, -1, self.hidden_size)  # [1, seq_len, hidden_size]
+            x = x.mean(dim=1)  # [1, hidden_size]
+        
         # Combine base model and LoRA adaptation
         return F.relu(self.dense(x) + self.lora(x))
 

@@ -113,7 +113,7 @@ class AdaptiveRouter(nn.Module):
             hidden_size, num_experts, top_k, temperature
         )
         
-        # Initialize router selector
+        # Initialize router selector with correct input size
         self.router_selector = nn.Sequential(
             nn.Linear(hidden_size, hidden_size // 2),
             nn.ReLU(),
@@ -122,6 +122,12 @@ class AdaptiveRouter(nn.Module):
         )
         
     def forward(self, x, expert_mask=None):
+        # Reshape input if needed
+        if len(x.shape) == 2:  # [batch_size, seq_len]
+            x = x.unsqueeze(-1).expand(-1, -1, self.hidden_size)  # [batch_size, seq_len, hidden_size]
+        elif len(x.shape) == 1:  # [seq_len]
+            x = x.unsqueeze(0).unsqueeze(-1).expand(-1, -1, self.hidden_size)  # [1, seq_len, hidden_size]
+        
         # Get router selection weights
         router_weights = self.router_selector(x.mean(dim=1))  # [batch_size, 2]
         

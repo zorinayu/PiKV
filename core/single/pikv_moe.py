@@ -38,6 +38,15 @@ class KVCache(nn.Module):
         )
     
     def update(self, idx, key, value, importance):
+        # Reshape input if needed
+        if len(key.shape) == 2:  # [batch_size, seq_len]
+            # Project to hidden size
+            key = key.unsqueeze(-1).expand(-1, -1, self.hidden_size)  # [batch_size, seq_len, hidden_size]
+            key = key.mean(dim=1)  # [batch_size, hidden_size]
+        elif len(key.shape) == 1:  # [seq_len]
+            key = key.unsqueeze(0).unsqueeze(-1).expand(-1, -1, self.hidden_size)  # [1, seq_len, hidden_size]
+            key = key.mean(dim=1)  # [1, hidden_size]
+        
         # Update cache at the specified index
         self.keys[idx] = key.mean(dim=0)  # Average across batch
         self.values[idx] = value.mean(dim=0)  # Average across batch
@@ -93,6 +102,9 @@ class PiKVMoE(nn.Module):
         # Cache pointers for each expert
         self.register_buffer('cache_ptrs', torch.zeros(config['num_experts'], dtype=torch.long))
         
+        # Projection to vocabulary size
+        self.vocab_proj = nn.Linear(config['hidden_size'], config['vocab_size'])
+        
         # Memory expansion flag
         self.use_memory_expansion = config.get('use_memory_expansion', False)
         if self.use_memory_expansion:
@@ -142,21 +154,28 @@ class PiKVMoE(nn.Module):
         # Update pointer
         self.cache_ptrs[expert_idx] = (ptr + 1) % cache.size
     
-    def forward(self, x, query=None):
+    def forward(self, x, query=None, return_loss=False):
+        # Convert input to float if it's not already
+        if x.dtype != torch.float32:
+            x = x.to(torch.float32)
+        
         # Calculate gate scores using adaptive router
         routing_weights, expert_indices, top_k_weights, lb_loss, importance = self.router(x)
         
         # If query is provided, compute token importance
         if query is not None:
+            if query.dtype != torch.float32:
+                query = query.to(torch.float32)
             importance = self.compute_token_importance(query, x)
         
         # Initialize output tensor
-        expert_output = torch.zeros_like(x)
+        batch_size = x.size(0)
+        expert_output = torch.zeros(batch_size, config['hidden_size'], device=x.device)
         
         # Process each expert
         for i, expert in enumerate(self.experts):
             # Get expert output with LoRA
-            expert_output_i = expert(x)
+            expert_output_i = expert(x)  # [batch_size, hidden_size]
             
             # Get cached values
             cached_values = self.kv_caches[i].get_all()
@@ -169,9 +188,17 @@ class PiKVMoE(nn.Module):
             self.update_cache(i, x.detach(), expert_output_i.detach(), importance.detach())  # Detach inputs to cache
             
             # Add to final output weighted by routing probabilities
-            expert_output += expert_output_i * routing_weights[:, :, i].unsqueeze(-1)
+            # Ensure routing weights have the correct shape [batch_size, num_experts]
+            if len(routing_weights.shape) == 3:  # [batch_size, seq_len, num_experts]
+                routing_weights = routing_weights.mean(dim=1)  # Average over sequence length
+            expert_output += expert_output_i * routing_weights[:, i].unsqueeze(-1)  # [batch_size, hidden_size]
         
-        return expert_output, lb_loss
+        # Project to vocabulary size
+        logits = self.vocab_proj(expert_output)  # [batch_size, vocab_size]
+        
+        if return_loss:
+            return logits, lb_loss
+        return logits
     
     def save_checkpoint(self, path):
         """
