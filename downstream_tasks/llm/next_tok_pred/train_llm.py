@@ -3,9 +3,10 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from transformers.models.gpt2.tokenization_gpt2 import GPT2Tokenizer
-from llm_models import PiKVLLM, StandardMoELLM
+from core.single.pikv_moe import PiKVMoE
+from core.single.normal_moe import StandardMoE
+from core.distributed.distributed_pikv import DistributedPiKVManager
 from llm_config import llm_config as config
-import wandb
 import os
 from tqdm import tqdm
 import math
@@ -44,10 +45,7 @@ def get_lr(step, warmup_steps, total_steps):
     progress = float(step - warmup_steps) / float(max(1, total_steps - warmup_steps))
     return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
-def train_model(model_type='pikv'):
-    # Initialize wandb
-    wandb.init(project="pikv-llm", name=f"{model_type}-training")
-    
+def train_single_model(model_type='pikv'):
     # Set device
     device = config['device']
     
@@ -60,9 +58,9 @@ def train_model(model_type='pikv'):
     
     # Initialize model
     if model_type == 'pikv':
-        model = PiKVLLM().to(device)
+        model = PiKVMoE().to(device)
     else:
-        model = StandardMoELLM().to(device)
+        model = StandardMoE().to(device)
     
     # Initialize optimizer
     optimizer = optim.AdamW(
@@ -111,15 +109,6 @@ def train_model(model_type='pikv'):
             total_loss += loss.item()
             progress_bar.set_postfix({'loss': total_loss / (step + 1)})
             
-            # Log metrics
-            if step % 100 == 0:
-                wandb.log({
-                    'loss': loss.item(),
-                    'learning_rate': lr,
-                    'epoch': epoch,
-                    'step': step + epoch * len(dataloader)
-                })
-            
             # Save checkpoint
             if (step + epoch * len(dataloader)) % config['save_steps'] == 0:
                 save_path = f'checkpoints/{model_type}_epoch{epoch}_step{step}.pt'
@@ -139,7 +128,49 @@ def train_model(model_type='pikv'):
         'optimizer_state_dict': optimizer.state_dict(),
     }, save_path)
 
-def evaluate_model(model_type='pikv'):
+def train_distributed_model():
+    # Initialize distributed environment
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '23456'
+    
+    # Initialize tokenizer
+    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+    
+    # Create dataset and dataloader
+    dataset = TextDataset('data/train.txt', tokenizer, config['max_seq_length'])
+    dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=True)
+    
+    # Initialize distributed manager
+    pikv_manager = DistributedPiKVManager()
+    
+    # Training loop
+    for epoch in range(config['epochs']):
+        total_loss = 0
+        
+        progress_bar = tqdm(dataloader, desc=f'Epoch {epoch+1}/{config["epochs"]}')
+        for step, (input_ids, target_ids) in enumerate(progress_bar):
+            # Move data to device
+            input_ids = input_ids.to(config['device'])
+            target_ids = target_ids.to(config['device'])
+            
+            # Train step
+            loss = pikv_manager.train_step(input_ids, target_ids)
+            
+            # Update progress
+            total_loss += loss
+            progress_bar.set_postfix({'loss': total_loss / (step + 1)})
+            
+            # Save checkpoint
+            if (step + epoch * len(dataloader)) % config['save_steps'] == 0:
+                save_path = f'checkpoints/distributed_epoch{epoch}_step{step}.pt'
+                os.makedirs('checkpoints', exist_ok=True)
+                pikv_manager.save_checkpoint(save_path)
+    
+    # Save final model
+    save_path = 'checkpoints/distributed_final.pt'
+    pikv_manager.save_checkpoint(save_path)
+
+def evaluate_model(model_type='pikv', distributed=False):
     # Set device
     device = config['device']
     
@@ -150,15 +181,21 @@ def evaluate_model(model_type='pikv'):
     dataset = TextDataset('data/test.txt', tokenizer, config['max_seq_length'])
     dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=False)
     
-    # Load model
-    if model_type == 'pikv':
-        model = PiKVLLM().to(device)
+    if distributed:
+        # Initialize distributed manager
+        pikv_manager = DistributedPiKVManager()
+        pikv_manager.load_checkpoint(f'checkpoints/distributed_final.pt')
+        model = pikv_manager.model
     else:
-        model = StandardMoELLM().to(device)
-    
-    checkpoint = torch.load(f'checkpoints/{model_type}_final.pt')
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.eval()
+        # Load model
+        if model_type == 'pikv':
+            model = PiKVMoE().to(device)
+        else:
+            model = StandardMoE().to(device)
+        
+        checkpoint = torch.load(f'checkpoints/{model_type}_final.pt')
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.eval()
     
     # Initialize metrics
     total_loss = 0
@@ -190,13 +227,6 @@ def evaluate_model(model_type='pikv'):
     accuracy = correct_tokens / total_tokens
     perplexity = math.exp(avg_loss)
     
-    # Log metrics
-    wandb.log({
-        'eval_loss': avg_loss,
-        'eval_accuracy': accuracy,
-        'eval_perplexity': perplexity
-    })
-    
     return {
         'loss': avg_loss,
         'accuracy': accuracy,
@@ -204,21 +234,27 @@ def evaluate_model(model_type='pikv'):
     }
 
 if __name__ == '__main__':
-    # Train both models
+    # Train single models
     print("Training PiKV model...")
-    train_model('pikv')
+    train_single_model('pikv')
     print("Training Standard MoE model...")
-    train_model('standard')
+    train_single_model('standard')
     
-    # Evaluate both models
+    # Train distributed model
+    print("Training Distributed PiKV model...")
+    train_distributed_model()
+    
+    # Evaluate all models
     print("Evaluating PiKV model...")
     pikv_metrics = evaluate_model('pikv')
     print("Evaluating Standard MoE model...")
     standard_metrics = evaluate_model('standard')
+    print("Evaluating Distributed PiKV model...")
+    distributed_metrics = evaluate_model(distributed=True)
     
     # Print comparison
     print("\nModel Comparison:")
-    print(f"{'Metric':<15} {'PiKV':<15} {'Standard MoE':<15}")
-    print("-" * 45)
+    print(f"{'Metric':<15} {'PiKV':<15} {'Standard MoE':<15} {'Distributed PiKV':<15}")
+    print("-" * 60)
     for metric in ['loss', 'accuracy', 'perplexity']:
-        print(f"{metric:<15} {pikv_metrics[metric]:<15.4f} {standard_metrics[metric]:<15.4f}") 
+        print(f"{metric:<15} {pikv_metrics[metric]:<15.4f} {standard_metrics[metric]:<15.4f} {distributed_metrics[metric]:<15.4f}") 
