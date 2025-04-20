@@ -13,4 +13,5 @@ config = {
     'pyramidal_cache': True,  # Use pyramidal cache allocation strategy
     'cache_decrement': 10,  # Cache size decrement for each layer
     'num_layers': 5,  # Number of layers in the model
+    'vocab_size': 50257,  # Vocabulary size for the language model
 }

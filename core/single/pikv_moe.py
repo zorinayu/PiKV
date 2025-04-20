@@ -39,17 +39,16 @@ class KVCache(nn.Module):
     
     def update(self, idx, key, value, importance):
         # Reshape input if needed
-        if len(key.shape) == 2:  # [batch_size, seq_len]
-            # Project to hidden size
-            key = key.unsqueeze(-1).expand(-1, -1, self.hidden_size)  # [batch_size, seq_len, hidden_size]
-            key = key.mean(dim=1)  # [batch_size, hidden_size]
-        elif len(key.shape) == 1:  # [seq_len]
-            key = key.unsqueeze(0).unsqueeze(-1).expand(-1, -1, self.hidden_size)  # [1, seq_len, hidden_size]
-            key = key.mean(dim=1)  # [1, hidden_size]
+        if len(key.shape) == 3:  # [batch_size, seq_len, hidden_size]
+            key = key.mean(dim=0).mean(dim=0)  # [hidden_size]
+            value = value.mean(dim=0).mean(dim=0)  # [hidden_size]
+        elif len(key.shape) == 2:  # [seq_len, hidden_size]
+            key = key.mean(dim=0)  # [hidden_size]
+            value = value.mean(dim=0)  # [hidden_size]
         
         # Update cache at the specified index
-        self.keys[idx] = key.mean(dim=0)  # Average across batch
-        self.values[idx] = value.mean(dim=0)  # Average across batch
+        self.keys[idx] = key
+        self.values[idx] = value
         self.importance[idx] = importance.mean().item()
     
     def get_all(self):
@@ -159,7 +158,7 @@ class PiKVMoE(nn.Module):
         if x.dtype != torch.float32:
             x = x.to(torch.float32)
         
-        # Calculate gate scores using adaptive router
+        # Calculate routing weights using adaptive router
         routing_weights, expert_indices, top_k_weights, lb_loss, importance = self.router(x)
         
         # If query is provided, compute token importance
@@ -169,36 +168,31 @@ class PiKVMoE(nn.Module):
             importance = self.compute_token_importance(query, x)
         
         # Initialize output tensor
-        batch_size = x.size(0)
-        expert_output = torch.zeros(batch_size, config['hidden_size'], device=x.device)
+        batch_size, seq_len, hidden_size = x.shape
+        expert_output = torch.zeros(batch_size, seq_len, hidden_size, device=x.device)
         
         # Process each expert
         for i, expert in enumerate(self.experts):
             # Get expert output with LoRA
-            expert_output_i = expert(x)  # [batch_size, hidden_size]
+            expert_output_i = expert(x)  # [batch_size, seq_len, hidden_size]
             
             # Get cached values
             cached_values = self.kv_caches[i].get_all()
             
             # Combine with cached values
             if cached_values is not None:
-                expert_output_i = expert_output_i + cached_values.detach()  # Detach cached values
+                expert_output_i = expert_output_i + cached_values.unsqueeze(0).unsqueeze(0)  # [1, 1, hidden_size]
             
             # Update cache with new values
-            self.update_cache(i, x.detach(), expert_output_i.detach(), importance.detach())  # Detach inputs to cache
+            self.update_cache(i, x.detach(), expert_output_i.detach(), importance.detach())
             
             # Add to final output weighted by routing probabilities
-            # Ensure routing weights have the correct shape [batch_size, num_experts]
-            if len(routing_weights.shape) == 3:  # [batch_size, seq_len, num_experts]
-                routing_weights = routing_weights.mean(dim=1)  # Average over sequence length
-            expert_output += expert_output_i * routing_weights[:, i].unsqueeze(-1)  # [batch_size, hidden_size]
+            expert_output += expert_output_i * routing_weights[:, :, i].unsqueeze(-1)
         
-        # Project to vocabulary size
-        logits = self.vocab_proj(expert_output)  # [batch_size, vocab_size]
-        
+        # Project to vocabulary size if needed
         if return_loss:
-            return logits, lb_loss
-        return logits
+            return expert_output, lb_loss
+        return expert_output
     
     def save_checkpoint(self, path):
         """

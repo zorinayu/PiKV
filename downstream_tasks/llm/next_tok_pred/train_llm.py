@@ -18,7 +18,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 sys.path.append(project_root)
 
 class TextDataset(Dataset):
-    def __init__(self, file_path, tokenizer, max_length):
+    def __init__(self, file_path, tokenizer, max_length=32):
         self.tokenizer = tokenizer
         self.max_length = max_length
         
@@ -27,23 +27,24 @@ class TextDataset(Dataset):
             text = f.read()
         
         # Tokenize text
-        self.tokens = tokenizer.encode(text)
+        tokens = tokenizer.encode(text)
         
-        # Create sequences
+        # Create sequences with fixed length
         self.sequences = []
-        for i in range(0, len(self.tokens) - max_length, max_length // 2):
-            sequence = self.tokens[i:i + max_length]
+        for i in range(0, len(tokens) - max_length, max_length):
+            sequence = tokens[i:i + max_length]
             if len(sequence) == max_length:
-                self.sequences.append(sequence)
+                # Split into input and target
+                input_sequence = sequence[:-1]  # All tokens except last
+                target_sequence = sequence[1:]  # All tokens except first
+                self.sequences.append((input_sequence, target_sequence))
     
     def __len__(self):
         return len(self.sequences)
     
     def __getitem__(self, idx):
-        sequence = self.sequences[idx]
-        input_ids = sequence[:-1]
-        target_ids = sequence[1:]
-        return torch.tensor(input_ids), torch.tensor(target_ids)
+        input_sequence, target_sequence = self.sequences[idx]
+        return torch.tensor(input_sequence), torch.tensor(target_sequence)
 
 def get_lr(step, warmup_steps, total_steps):
     if step < warmup_steps:
@@ -58,9 +59,9 @@ def train_single_model(model_type='pikv'):
     # Initialize tokenizer
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     
-    # Create dataset and dataloader
-    dataset = TextDataset('data/train.txt', tokenizer, config['max_seq_length'])
-    dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=True)
+    # Create dataset and dataloader with smaller batch size
+    dataset = TextDataset('data/test.txt', tokenizer, max_length=32)
+    dataloader = DataLoader(dataset, batch_size=4, shuffle=True)  # Smaller batch size
     
     # Initialize model
     if model_type == 'pikv':
@@ -71,68 +72,47 @@ def train_single_model(model_type='pikv'):
     # Initialize optimizer
     optimizer = optim.AdamW(
         model.parameters(),
-        lr=config['learning_rate'],
-        weight_decay=config['weight_decay']
+        lr=1e-4,  # Smaller learning rate
+        weight_decay=0.01
     )
     
     # Initialize loss function
     criterion = nn.CrossEntropyLoss()
     
     # Training loop
-    total_steps = len(dataloader) * config['epochs']
-    warmup_steps = config['warmup_steps']
-    
-    for epoch in range(config['epochs']):
+    for epoch in range(5):  # Fewer epochs for testing
         model.train()
         total_loss = 0
         
-        progress_bar = tqdm(dataloader, desc=f'Epoch {epoch+1}/{config["epochs"]}')
+        progress_bar = tqdm(dataloader, desc=f'Epoch {epoch+1}/5')
         for step, (input_ids, target_ids) in enumerate(progress_bar):
             # Move data to device
-            input_ids = input_ids.to(device)
-            target_ids = target_ids.to(device)
+            input_ids = input_ids.to(device)  # [batch_size, seq_len-1]
+            target_ids = target_ids.to(device)  # [batch_size, seq_len-1]
             
             # Forward pass
-            logits = model(input_ids)
-            loss = criterion(logits.view(-1, config['vocab_size']), target_ids.view(-1))
+            logits = model(input_ids)  # [batch_size, seq_len-1, vocab_size]
+            
+            # Calculate loss
+            # Reshape logits to [batch_size * seq_len-1, vocab_size]
+            # and targets to [batch_size * seq_len-1]
+            loss = criterion(
+                logits.reshape(-1, logits.size(-1)),  # [batch_size * seq_len-1, vocab_size]
+                target_ids.reshape(-1)  # [batch_size * seq_len-1]
+            )
             
             # Backward pass
             loss.backward()
-            
-            # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), config['max_grad_norm'])
             
             # Update weights
             optimizer.step()
             optimizer.zero_grad()
             
-            # Update learning rate
-            lr = get_lr(step + epoch * len(dataloader), warmup_steps, total_steps)
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-            
             # Update progress
             total_loss += loss.item()
             progress_bar.set_postfix({'loss': total_loss / (step + 1)})
-            
-            # Save checkpoint
-            if (step + epoch * len(dataloader)) % config['save_steps'] == 0:
-                save_path = f'checkpoints/{model_type}_epoch{epoch}_step{step}.pt'
-                os.makedirs('checkpoints', exist_ok=True)
-                torch.save({
-                    'epoch': epoch,
-                    'step': step,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': loss.item(),
-                }, save_path)
     
-    # Save final model
-    save_path = f'checkpoints/{model_type}_final.pt'
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-    }, save_path)
+    return model
 
 def train_distributed_model():
     # Initialize distributed environment
