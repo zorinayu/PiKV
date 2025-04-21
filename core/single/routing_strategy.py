@@ -129,7 +129,9 @@ class AdaptiveRouter(nn.Module):
             x = x.unsqueeze(0).unsqueeze(-1).expand(-1, -1, self.hidden_size)  # [1, seq_len, hidden_size]
         
         # Get router selection weights
-        router_weights = self.router_selector(x.mean(dim=1))  # [batch_size, 2]
+        # Take mean across sequence length and project to hidden_size
+        x_mean = x.mean(dim=1)  # [batch_size, hidden_size]
+        router_weights = self.router_selector(x_mean)  # [batch_size, 2]
         
         # Get routing from both strategies
         lb_weights, lb_indices, lb_top_k, lb_loss = self.load_balancing_router(x, expert_mask)
