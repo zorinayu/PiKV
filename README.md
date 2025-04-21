@@ -98,6 +98,284 @@ Generated: In a galaxy far far away, the world's first space station is located 
 "You're right. I'm a little bit surprised that you're here, but you're a human
 ```
 
+Distributed on 8 A100 GPUs results
+```
+(mka) jovyan@w-lenge-large-4ceda59b6605447685173387f3a3f682-6d7cd77666-tk4vq:~/workspace/PiKV$ torchrun --nproc_per_node=8     --nnodes=1     --node_rank=0     --master_addr=localhost     --master_port=23459     downstream_tasks/llm/next_tok_pred/d_transformers.py
+[2025-04-21 03:03:27,367] torch.distributed.run: [WARNING] 
+[2025-04-21 03:03:27,367] torch.distributed.run: [WARNING] *****************************************
+[2025-04-21 03:03:27,367] torch.distributed.run: [WARNING] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+[2025-04-21 03:03:27,367] torch.distributed.run: [WARNING] *****************************************
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 3, local_rank 3
+Successfully initialized distributed environment on rank 3
+Process started with rank 3, local_rank 3, world_size 8
+Rank 3: Loading model and tokenizer...
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 0, local_rank 0
+Successfully initialized distributed environment on rank 0
+Process started with rank 0, local_rank 0, world_size 8
+Rank 0: Loading model and tokenizer...
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 2, local_rank 2
+Successfully initialized distributed environment on rank 2
+Process started with rank 2, local_rank 2, world_size 8
+Rank 2: Loading model and tokenizer...
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 7, local_rank 7
+Successfully initialized distributed environment on rank 7
+Process started with rank 7, local_rank 7, world_size 8
+Rank 7: Loading model and tokenizer...
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 1, local_rank 1
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 4, local_rank 4
+Successfully initialized distributed environment on rank 4
+Process started with rank 4, local_rank 4, world_size 8
+Rank 4: Loading model and tokenizer...
+Successfully initialized distributed environment on rank 1
+Process started with rank 1, local_rank 1, world_size 8
+Rank 1: Loading model and tokenizer...
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 6, local_rank 6
+Successfully initialized distributed environment on rank 6
+Process started with rank 6, local_rank 6, world_size 8
+Rank 6: Loading model and tokenizer...
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 5, local_rank 5
+Successfully initialized distributed environment on rank 5
+Process started with rank 5, local_rank 5, world_size 8
+Rank 5: Loading model and tokenizer...
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Rank 3: Initializing DistributedPiKVMoE...
+Rank 3: Moving model to device cuda:3
+Rank 2: Initializing DistributedPiKVMoE...
+Rank 2: Moving model to device cuda:2
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Rank 7: Initializing DistributedPiKVMoE...
+/opt/saturncloud/envs/mka/lib/python3.10/site-packages/huggingface_hub/file_download.py:896: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
+  warnings.warn(
+Rank 7: Moving model to device cuda:7
+Rank 5: Initializing DistributedPiKVMoE...
+Rank 6: Initializing DistributedPiKVMoE...
+Rank 5: Moving model to device cuda:5
+Rank 6: Moving model to device cuda:6
+Rank 1: Initializing DistributedPiKVMoE...
+Rank 1: Moving model to device cuda:1
+Rank 4: Initializing DistributedPiKVMoE...
+Rank 4: Moving model to device cuda:4
+Rank 0: Initializing DistributedPiKVMoE...
+Rank 2: Initialization complete
+Rank 0: Moving model to device cuda:0
+Rank 3: Initialization complete
+Rank 7: Initialization complete
+Rank 6: Initialization complete
+Rank 5: Initialization complete
+Rank 4: Initialization complete
+Rank 1: Initialization complete
+Rank 0: Initialization complete
+
+Prompt: The quick brown fox
+Generating token 1/50
+Generating token 2/50
+Generating token 3/50
+Generating token 4/50
+Generating token 5/50
+Generating token 6/50
+Generating token 7/50
+Generating token 8/50
+Generating token 9/50
+Generating token 10/50
+Generating token 11/50
+Generating token 12/50
+Generating token 13/50
+Generating token 14/50
+Generating token 15/50
+Generating token 16/50
+Generating token 17/50
+Generating token 18/50
+Generating token 19/50
+Generating token 20/50
+Generating token 21/50
+Generating token 22/50
+Generating token 23/50
+Generating token 24/50
+Generating token 25/50
+Generating token 26/50
+Generating token 27/50
+Generating token 28/50
+Generating token 29/50
+Generating token 30/50
+Generating token 31/50
+Generating token 32/50
+Generating token 33/50
+Generating token 34/50
+Generating token 35/50
+Generating token 36/50
+Generating token 37/50
+Generating token 38/50
+Generating token 39/50
+Generating token 40/50
+Generating token 41/50
+Generating token 42/50
+Generating token 43/50
+Generating token 44/50
+Generating token 45/50
+Generating token 46/50
+Generating token 47/50
+Generating token 48/50
+Generating token 49/50
+Generating token 50/50
+Generated: The quick brown foxes can be found on the eastern coast of North America. In the wild they are small and harmless, but they are very intelligent and intelligent in their environment.
+
+They are known to mate with any mammal that they see and even many birds.
+
+Prompt: Once upon a time
+Generating token 1/50
+Generating token 2/50
+Generating token 3/50
+Generating token 4/50
+Generating token 5/50
+Generating token 6/50
+Generating token 7/50
+Generating token 8/50
+Generating token 9/50
+Generating token 10/50
+Generating token 11/50
+Generating token 12/50
+Generating token 13/50
+Generating token 14/50
+Generating token 15/50
+Generating token 16/50
+Generating token 17/50
+Generating token 18/50
+Generating token 19/50
+Generating token 20/50
+Generating token 21/50
+Generating token 22/50
+Generating token 23/50
+Generating token 24/50
+Generating token 25/50
+Generating token 26/50
+Generating token 27/50
+Generating token 28/50
+Generating token 29/50
+Generating token 30/50
+Generating token 31/50
+Generating token 32/50
+Generating token 33/50
+Generating token 34/50
+Generating token 35/50
+Generating token 36/50
+Generating token 37/50
+Generating token 38/50
+Generating token 39/50
+Generating token 40/50
+Generating token 41/50
+Generating token 42/50
+Generating token 43/50
+Generating token 44/50
+Generating token 45/50
+Generating token 46/50
+Generating token 47/50
+Generating token 48/50
+Generating token 49/50
+Generating token 50/50
+Generated: Once upon a time, there were two paths. One path was straight, and the other path was straight.
+
+When I was young, I used to think that if I could do it, I could do it. When I was a child, I thought I
+
+Prompt: In a galaxy far far away
+Generating token 1/50
+Generating token 2/50
+Generating token 3/50
+Generating token 4/50
+Generating token 5/50
+Generating token 6/50
+Generating token 7/50
+Generating token 8/50
+Generating token 9/50
+Generating token 10/50
+Generating token 11/50
+Generating token 12/50
+Generating token 13/50
+Generating token 14/50
+Generating token 15/50
+Generating token 16/50
+Generating token 17/50
+Generating token 18/50
+Generating token 19/50
+Generating token 20/50
+Generating token 21/50
+Generating token 22/50
+Generating token 23/50
+Generating token 24/50
+Generating token 25/50
+Generating token 26/50
+Generating token 27/50
+Generating token 28/50
+Generating token 29/50
+Generating token 30/50
+Generating token 31/50
+Generating token 32/50
+Generating token 33/50
+Generating token 34/50
+Generating token 35/50
+Generating token 36/50
+Generating token 37/50
+Generating token 38/50
+Generating token 39/50
+Generating token 40/50
+Generating token 41/50
+Generating token 42/50
+Generating token 43/50
+Generating token 44/50
+Generating token 45/50
+Generating token 46/50
+Generating token 47/50
+Generating token 48/50
+Generating token 49/50
+Generating token 50/50
+Generated: In a galaxy far far away, the sun is about half as bright as the sun, and the distance between us and the sun is about half that of the galaxy. The distance between us and the sun is about five times that of the galaxy.
+
+This is why we
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+```
+
 ### 2. RAG (Retrieval-Augmented Generation)
 
 ```bash
