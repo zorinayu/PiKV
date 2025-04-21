@@ -50,10 +50,20 @@ class DistributedKVCache(nn.Module):
         )
     
     def update(self, idx, key, value, importance):
+        # Reshape input if needed
+        if len(key.shape) == 3:  # [batch_size, seq_len, hidden_size]
+            key = key.mean(dim=0).mean(dim=0)  # [hidden_size]
+            value = value.mean(dim=0).mean(dim=0)  # [hidden_size]
+        elif len(key.shape) == 2:  # [batch_size, hidden_size]
+            key = key.mean(dim=0)  # [hidden_size]
+            value = value.mean(dim=0)  # [hidden_size]
+        elif len(key.shape) == 1:  # [hidden_size]
+            pass  # Already in correct shape
+        
         # Update cache at the specified index
-        self.keys[idx] = key.mean(dim=0)  # Average across batch
-        self.values[idx] = value.mean(dim=0)  # Average across batch
-        self.importance[idx] = importance.mean().item()
+        self.keys[idx] = key
+        self.values[idx] = value
+        self.importance[idx] = importance.mean().item() if importance is not None else 1.0
     
     def get_all(self):
         # Apply compression to cached values

@@ -36,15 +36,29 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 ### 1. LLM Next Token Prediction
 
+single GPU
 ```bash
 # Generate training and testing data
 python downstream_tasks/llm/next_tok_pred/generate_data.py
 
 # Train single-node model with LoRA
 python downstream_tasks/llm/next_tok_pred/train_llm.py --model_type single --use_lora
+```
 
-# Train distributed model with LoRA (using 4 GPUs)
+
+8 GPUs
+```bash
+# Train distributed model with LoRA (using 8 GPUs)
 torchrun --nproc_per_node=4 downstream_tasks/llm/next_tok_pred/train_llm.py --model_type distributed --use_lora
+```
+or
+```bash
+torchrun --nproc_per_node=8 \
+    --nnodes=1 \
+    --node_rank=0 \
+    --master_addr=localhost \
+    --master_port=23458 \
+    downstream_tasks/llm/next_tok_pred/d_transformers.py
 ```
 
 Result
