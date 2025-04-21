@@ -154,6 +154,7 @@ class PiKVMoE(nn.Module):
         self.cache_ptrs[expert_idx] = (ptr + 1) % cache.size
     
     def forward(self, x, query=None, return_loss=False):
+        # if with query, we can compute token importance then use lora
         # Convert input to float if it's not already
         if x.dtype != torch.float32:
             x = x.to(torch.float32)

@@ -46,7 +46,8 @@ class SimplestPiKVCache:
             tensor = projection(tensor)
         
         # Process through PiKV MoE
-        processed = self.pikv(tensor)
+        # processed = self.pikv(tensor)
+        processed = self.pikv(tensor, tensor)
         
         # Reshape back to original dimensions if needed
         if len(tensor.shape) == 4:
