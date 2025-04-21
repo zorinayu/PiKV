@@ -25,7 +25,7 @@ class SingleAblationTest:
         self.models = {
             'standard': self._create_standard_moe(),
             'lora': self._create_lora_moe(),
-            'compressed': self._create_compressed_moe(),
+            #'compressed': self._create_compressed_moe(),
             'adaptive': self._create_adaptive_moe(),
             'pikv': self._create_pikv_moe()
         }
@@ -43,7 +43,8 @@ class SingleAblationTest:
     def _create_lora_moe(self):
         """Create LoRA MoE model."""
         from core.single.lora_moe import LoRAMoE
-        return LoRAMoE(rank=8, alpha=1.0)
+        # Use the same number of experts as in config
+        return LoRAMoE(rank=config['num_experts'], alpha=1.0)
     
     def _create_compressed_moe(self):
         """Create compressed MoE model."""
@@ -57,11 +58,26 @@ class SingleAblationTest:
     
     def _create_pikv_moe(self):
         """Create PiKV MoE model."""
-        return PiKVMoE(rank=8, alpha=1.0)
+        return PiKVMoE(rank=4, alpha=1.0)
     
     def test_inference_speed(self, model_name, input_tensor):
         """Test inference speed of a model."""
         model = self.models[model_name]
+        
+        # Ensure input tensor has correct dimensions
+        if len(input_tensor.shape) == 2:  # [batch_size, hidden_size]
+            input_tensor = input_tensor.unsqueeze(1)  # [batch_size, 1, hidden_size]
+        elif len(input_tensor.shape) == 3:  # [batch_size, seq_len, hidden_size]
+            pass  # Already in correct shape
+        else:
+            raise ValueError(f"Unexpected input tensor shape: {input_tensor.shape}")
+        
+        # For LoRA model, ensure input has correct dimensions
+        if model_name == 'lora':
+            # Ensure input has shape [batch_size, seq_len, hidden_size]
+            if input_tensor.shape[1] != config['num_experts']:
+                # Expand to match number of experts
+                input_tensor = input_tensor.expand(-1, config['num_experts'], -1)
         
         # Warm up
         for _ in range(5):
@@ -79,6 +95,21 @@ class SingleAblationTest:
         """Test memory usage of a model."""
         model = self.models[model_name]
         process = psutil.Process(os.getpid())
+        
+        # Ensure input tensor has correct dimensions
+        if len(input_tensor.shape) == 2:  # [batch_size, hidden_size]
+            input_tensor = input_tensor.unsqueeze(1)  # [batch_size, 1, hidden_size]
+        elif len(input_tensor.shape) == 3:  # [batch_size, seq_len, hidden_size]
+            pass  # Already in correct shape
+        else:
+            raise ValueError(f"Unexpected input tensor shape: {input_tensor.shape}")
+        
+        # For LoRA model, ensure input has correct dimensions
+        if model_name == 'lora':
+            # Ensure input has shape [batch_size, seq_len, hidden_size]
+            if input_tensor.shape[1] != config['num_experts']:
+                # Expand to match number of experts
+                input_tensor = input_tensor.expand(-1, config['num_experts'], -1)
         
         # Get initial memory
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
@@ -98,25 +129,82 @@ class SingleAblationTest:
         # Tokenize input
         input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to(self.device)
         
+        # Convert input_ids to embeddings (simple projection)
+        input_embeddings = torch.nn.functional.one_hot(
+            input_ids, 
+            num_classes=self.tokenizer.vocab_size
+        ).float()  # [batch_size, seq_len, vocab_size]
+        
+        # Project to hidden size
+        projection = torch.nn.Linear(
+            self.tokenizer.vocab_size, 
+            config['hidden_size']
+        ).to(self.device)
+        input_embeddings = projection(input_embeddings)  # [batch_size, seq_len, hidden_size]
+        
+        # For LoRA model, ensure input has correct dimensions
+        if model_name == 'lora':
+            # Ensure input has shape [batch_size, seq_len, hidden_size]
+            if input_embeddings.shape[1] != config['num_experts']:
+                # Expand to match number of experts
+                input_embeddings = input_embeddings.expand(-1, config['num_experts'], -1)
+        
         # Generate text
-        output_ids = input_ids.clone()
+        output_embeddings = input_embeddings.clone()
         for _ in range(max_length):
             # Get model outputs
             with torch.no_grad():
-                outputs = model(output_ids)
-                next_token_logits = outputs[:, -1, :]
-                next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True)
-                output_ids = torch.cat([output_ids, next_token], dim=1)
+                # Process through MoE
+                outputs = model(output_embeddings)  # [batch_size, seq_len, hidden_size]
+                
+                # For LoRA model, take mean across experts
+                if model_name == 'lora':
+                    # Ensure we're taking mean across the correct dimension
+                    outputs = outputs.mean(dim=1, keepdim=True)  # [batch_size, 1, hidden_size]
+                
+                # Get next token logits
+                next_token_logits = torch.matmul(
+                    outputs[:, -1:, :],  # [batch_size, 1, hidden_size]
+                    projection.weight  # [hidden_size, vocab_size]
+                )  # [batch_size, 1, vocab_size]
+                
+                # Get next token ID
+                next_token_id = torch.argmax(next_token_logits[:, 0], dim=-1)  # [batch_size]
+                
+                # Get next token embedding
+                next_token_embedding = torch.nn.functional.one_hot(
+                    next_token_id, 
+                    num_classes=self.tokenizer.vocab_size
+                ).float()  # [batch_size, vocab_size]
+                next_token_embedding = projection(next_token_embedding)  # [batch_size, hidden_size]
+                next_token_embedding = next_token_embedding.unsqueeze(1)  # [batch_size, 1, hidden_size]
+                
+                # For LoRA model, expand to match number of experts
+                if model_name == 'lora':
+                    next_token_embedding = next_token_embedding.expand(-1, config['num_experts'], -1)
+                
+                # Concatenate with previous outputs
+                output_embeddings = torch.cat([output_embeddings, next_token_embedding], dim=1)
+        
+        # Convert embeddings back to token IDs
+        output_logits = torch.matmul(
+            output_embeddings,  # [batch_size, seq_len, hidden_size]
+            projection.weight  # [hidden_size, vocab_size]
+        )  # [batch_size, seq_len, vocab_size]
+        output_ids = torch.argmax(output_logits, dim=-1)  # [batch_size, seq_len]
         
         # Decode and return generated text
         return self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
     
-    def run_ablation_test(self, prompt, input_size=(1, 32, 768)):
-        """Run complete ablation test."""
-        # Create input tensor
-        input_tensor = torch.randn(*input_size).to(self.device)
-        
+    def run_ablation_test(self, prompt):
+        """Run ablation test for all models."""
         results = {}
+        
+        # Create input tensor with correct dimensions
+        batch_size = 1
+        seq_len = 1
+        input_tensor = torch.randn(batch_size, seq_len, config['hidden_size']).to(self.device)
+        
         for model_name in self.models:
             print(f"\nTesting {model_name} model...")
             

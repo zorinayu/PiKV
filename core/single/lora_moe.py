@@ -25,8 +25,15 @@ class LoRAMoE(nn.Module):
         )
         
     def forward(self, x):
-        # Calculate routing weights
-        routing_weights = self.router(x)  # [batch_size, num_experts]
+        # Ensure input has correct shape [batch_size, seq_len, hidden_size]
+        if len(x.shape) == 2:  # [batch_size, hidden_size]
+            x = x.unsqueeze(1)  # [batch_size, 1, hidden_size]
+        elif len(x.shape) == 1:  # [hidden_size]
+            x = x.unsqueeze(0).unsqueeze(0)  # [1, 1, hidden_size]
+        
+        # Calculate routing weights using mean across sequence length
+        x_mean = x.mean(dim=1)  # [batch_size, hidden_size]
+        routing_weights = self.router(x_mean)  # [batch_size, num_experts]
         
         # Initialize output tensor
         expert_output = torch.zeros_like(x)
@@ -34,9 +41,12 @@ class LoRAMoE(nn.Module):
         # Process each expert
         for i, expert in enumerate(self.experts):
             # Get expert output with LoRA adaptation
-            expert_output_i = expert(x)
+            expert_output_i = expert(x)  # [batch_size, seq_len, hidden_size]
+            
+            # Reshape routing weights to match expert output dimensions
+            routing_weights_i = routing_weights[:, i].unsqueeze(-1).unsqueeze(-1)  # [batch_size, 1, 1]
             
             # Add to final output weighted by routing probabilities
-            expert_output += expert_output_i * routing_weights[:, i].unsqueeze(-1)
+            expert_output += expert_output_i * routing_weights_i
         
         return expert_output 

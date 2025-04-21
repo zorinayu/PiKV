@@ -35,8 +35,11 @@ class AdaptiveRouter(nn.Module):
     
     def update_loads(self, routing_weights):
         # Update expert loads based on routing weights
-        self.expert_loads += routing_weights.sum(dim=0)
-        self.total_load += routing_weights.sum()
+        # routing_weights shape: [batch_size, seq_len, num_experts]
+        # Sum across batch and sequence dimensions to get total load per expert
+        expert_loads = routing_weights.sum(dim=0).sum(dim=0)  # [num_experts]
+        self.expert_loads += expert_loads
+        self.total_load += expert_loads.sum()
     
     def get_load_balance_loss(self):
         # Calculate load balancing loss
@@ -81,19 +84,26 @@ class RoutingMoE(nn.Module):
         self.router = AdaptiveRouter(self.hidden_size, self.num_experts)
     
     def forward(self, x):
+        # Ensure input is float32
+        if x.dtype != torch.float32:
+            x = x.to(torch.float32)
+            
+        # Get input shape
+        batch_size, seq_len, hidden_size = x.shape
+        
         # Calculate routing weights
-        routing_weights = self.router(x)  # [batch_size, num_experts]
+        routing_weights = self.router(x)  # [batch_size, seq_len, num_experts]
         
         # Initialize output tensor
-        expert_output = torch.zeros_like(x)
+        expert_output = torch.zeros(batch_size, seq_len, hidden_size, device=x.device)
         
         # Process each expert
         for i, expert in enumerate(self.experts):
             # Get expert output
-            expert_output_i = expert(x)
+            expert_output_i = expert(x)  # [batch_size, seq_len, hidden_size]
             
             # Add to final output weighted by routing probabilities
-            expert_output += expert_output_i * routing_weights[:, i].unsqueeze(-1)
+            expert_output += expert_output_i * routing_weights[:, :, i].unsqueeze(-1)
         
         return expert_output
     
