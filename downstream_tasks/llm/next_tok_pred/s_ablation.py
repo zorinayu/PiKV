@@ -138,34 +138,44 @@ class SingleAblationTest:
         
         # Tokenize input and move to correct device
         input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to(self.device)
+        output_ids = input_ids.clone()
         
-        # Convert input_ids to embeddings and ensure on correct device
-        input_embeddings = self.model.get_input_embeddings()(input_ids).to(self.device)
-        
-        # Process through attention
-        input_embeddings = self._process_with_attention(input_embeddings)
-        
-        # Initialize output embeddings
-        output_embeddings = input_embeddings.clone()
+        # Initialize log probabilities for PPL calculation
+        log_probs = []
         
         # Generate text with improved sampling
         for _ in range(max_length):
             with torch.no_grad():
                 # Get model outputs
-                outputs = model(output_embeddings)
+                outputs = self.model(
+                    input_ids=output_ids,
+                    use_cache=True,
+                    return_dict=True
+                )
+                
+                # Process each layer's KV cache
+                new_past_key_values = []
+                for layer_idx, layer_output in enumerate(outputs.past_key_values):
+                    key, value = layer_output
+                    
+                    # Process through attention mechanism
+                    processed_key = self._process_with_attention(key)
+                    processed_value = self._process_with_attention(value)
+                    
+                    # Create new tuple for this layer
+                    new_past_key_values.append((processed_key, processed_value))
+                
+                # Update model's KV cache
+                outputs.past_key_values = tuple(new_past_key_values)
                 
                 # Get next token logits
-                if hasattr(outputs, 'logits'):
-                    next_token_logits = outputs.logits[:, -1, :] / temperature
-                else:
-                    next_token_logits = outputs[:, -1, :] / temperature
+                next_token_logits = outputs.logits[:, -1, :] / temperature
                 
-                # Apply top-k filtering
+                # Apply top-k and top-p filtering
                 if top_k > 0:
                     indices_to_remove = next_token_logits < torch.topk(next_token_logits, top_k)[0][..., -1, None]
                     next_token_logits[indices_to_remove] = float('-inf')
                 
-                # Apply top-p (nucleus) sampling
                 if top_p < 1.0:
                     sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
                     cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
@@ -179,22 +189,21 @@ class SingleAblationTest:
                 probs = torch.softmax(next_token_logits, dim=-1)
                 next_token = torch.multinomial(probs, num_samples=1)
                 
-                # Get next token embedding and ensure on correct device
-                next_token_embedding = self.model.get_input_embeddings()(next_token).to(self.device)
-                next_token_embedding = self._process_with_attention(next_token_embedding)
+                # Store log probability for PPL calculation
+                log_probs.append(torch.log(probs[0, next_token[0, 0]]))
                 
-                # Concatenate with previous outputs
-                output_embeddings = torch.cat([output_embeddings, next_token_embedding], dim=1)
+                # Append to output
+                output_ids = torch.cat([output_ids, next_token], dim=1)
         
-        # Convert embeddings back to token IDs
-        output_logits = torch.matmul(
-            output_embeddings,
-            self.model.get_input_embeddings().weight.t()
-        )
-        output_ids = torch.argmax(output_logits, dim=-1)
+        # Calculate PPL
+        if log_probs:
+            ppl = torch.exp(-torch.mean(torch.stack(log_probs))).item()
+        else:
+            ppl = float('inf')
         
-        # Decode and return generated text
-        return self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        # Decode and return generated text and PPL
+        generated_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        return generated_text, ppl
     
     def run_ablation_test(self, prompt):
         """Run ablation test with improved generation."""
@@ -215,7 +224,7 @@ class SingleAblationTest:
             memory_usage = self.test_memory_usage(model_name, input_tensor)
             
             # Test generation quality with improved parameters
-            generated_text = self.test_generation_quality(
+            generated_text, ppl = self.test_generation_quality(
                 model_name, 
                 prompt,
                 temperature=0.7,
@@ -226,12 +235,14 @@ class SingleAblationTest:
             results[model_name] = {
                 'inference_time': inference_time,
                 'memory_usage': memory_usage,
-                'generated_text': generated_text
+                'generated_text': generated_text,
+                'ppl': ppl
             }
             
             print(f"Inference time: {inference_time:.4f} seconds")
             print(f"Memory usage: {memory_usage:.2f} MB")
             print(f"Generated text: {generated_text}")
+            print(f"Perplexity: {ppl:.2f}")
         
         return results
     
@@ -243,6 +254,7 @@ class SingleAblationTest:
             print(f"\n{model_name.upper()} Model:")
             print(f"  Inference Time: {metrics['inference_time']:.4f} seconds")
             print(f"  Memory Usage: {metrics['memory_usage']:.2f} MB")
+            print(f"  Perplexity: {metrics['ppl']:.2f}")
             print(f"  Generated Text: {metrics['generated_text']}")
         print("=" * 80)
 

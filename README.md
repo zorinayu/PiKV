@@ -376,6 +376,15 @@ Distributed environment cleaned up
 Distributed environment cleaned up
 ```
 
+Ablation Tests
+| Model    | Inference Time (s) | Perplexity |
+|:---------|-------------------:|-----------:|
+| STANDARD | 0.0003             | 4.603      |
+| LORA     | 0.0010             | 4.502      |
+| ADAPTIVE | 0.0008             | 4.490      |
+| PIKV     | 0.0606             | 4.196      |
+
+
 ### 2. RAG (Retrieval-Augmented Generation)
 
 ```bash
