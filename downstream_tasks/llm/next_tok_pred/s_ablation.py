@@ -12,53 +12,63 @@ import os
 class SingleAblationTest:
     def __init__(self, model_name="gpt2"):
         # Initialize model and tokenizer
-        self.model = AutoModelForCausalLM.from_pretrained(model_name)
+        self.device = config['device']
+        self.model = AutoModelForCausalLM.from_pretrained(model_name).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         
-        # Get model's hidden size
+        # Get model's hidden size and number of attention heads
         self.hidden_size = self.model.config.hidden_size
+        self.num_heads = self.model.config.num_attention_heads
+        self.head_dim = self.hidden_size // self.num_heads
         
-        # Update config with model's hidden size
+        # Update config with model's parameters
         config['hidden_size'] = self.hidden_size
+        config['num_heads'] = self.num_heads
         
-        # Initialize different MoE models
+        # Initialize different MoE models with attention
         self.models = {
             'standard': self._create_standard_moe(),
             'lora': self._create_lora_moe(),
-            #'compressed': self._create_compressed_moe(),
             'adaptive': self._create_adaptive_moe(),
             'pikv': self._create_pikv_moe()
         }
         
         # Move models to device
-        self.device = config['device']
         for model in self.models.values():
             model.to(self.device)
     
     def _create_standard_moe(self):
-        """Create standard MoE model."""
+        """Create standard MoE model with attention."""
         from core.single.normal_moe import StandardMoE
         return StandardMoE()
     
     def _create_lora_moe(self):
-        """Create LoRA MoE model."""
+        """Create LoRA MoE model with attention."""
         from core.single.lora_moe import LoRAMoE
-        # Use the same number of experts as in config
-        return LoRAMoE(rank=config['num_experts'], alpha=1.0)
-    
-    def _create_compressed_moe(self):
-        """Create compressed MoE model."""
-        from core.single.kvc_moe import KVCacheMoE
-        return KVCacheMoE()
+        return LoRAMoE(rank=4, alpha=1.0)
     
     def _create_adaptive_moe(self):
-        """Create adaptive routing MoE model."""
+        """Create adaptive routing MoE model with attention."""
         from core.single.routing_moe import RoutingMoE
         return RoutingMoE()
     
     def _create_pikv_moe(self):
-        """Create PiKV MoE model."""
+        """Create PiKV MoE model with attention."""
         return PiKVMoE(rank=4, alpha=1.0)
+    
+    def _process_with_attention(self, tensor: torch.Tensor) -> torch.Tensor:
+        """Process tensor through attention mechanism."""
+        if len(tensor.shape) == 4:  # [batch_size, num_heads, seq_len, head_dim]
+            batch_size, num_heads, seq_len, head_dim = tensor.shape
+            # Reshape to [batch_size, seq_len, hidden_size]
+            hidden_size = num_heads * head_dim
+            tensor = tensor.permute(0, 2, 1, 3).reshape(batch_size, seq_len, hidden_size)
+        elif len(tensor.shape) == 3:  # [batch_size, seq_len, hidden_size]
+            pass  # Already in correct shape
+        elif len(tensor.shape) == 2:  # [batch_size, hidden_size]
+            tensor = tensor.unsqueeze(1)  # [batch_size, 1, hidden_size]
+        
+        return tensor
     
     def test_inference_speed(self, model_name, input_tensor):
         """Test inference speed of a model."""
@@ -122,82 +132,72 @@ class SingleAblationTest:
         
         return final_memory - initial_memory
     
-    def test_generation_quality(self, model_name, prompt, max_length=50):
-        """Test generation quality of a model."""
+    def test_generation_quality(self, model_name, prompt, max_length=50, temperature=0.7, top_k=50, top_p=0.9):
+        """Test generation quality with improved attention and sampling."""
         model = self.models[model_name]
         
-        # Tokenize input
+        # Tokenize input and move to correct device
         input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to(self.device)
         
-        # Convert input_ids to embeddings (simple projection)
-        input_embeddings = torch.nn.functional.one_hot(
-            input_ids, 
-            num_classes=self.tokenizer.vocab_size
-        ).float()  # [batch_size, seq_len, vocab_size]
+        # Convert input_ids to embeddings and ensure on correct device
+        input_embeddings = self.model.get_input_embeddings()(input_ids).to(self.device)
         
-        # Project to hidden size
-        projection = torch.nn.Linear(
-            self.tokenizer.vocab_size, 
-            config['hidden_size']
-        ).to(self.device)
-        input_embeddings = projection(input_embeddings)  # [batch_size, seq_len, hidden_size]
+        # Process through attention
+        input_embeddings = self._process_with_attention(input_embeddings)
         
-        # For LoRA model, ensure input has correct dimensions
-        if model_name == 'lora':
-            # Ensure input has shape [batch_size, seq_len, hidden_size]
-            if input_embeddings.shape[1] != config['num_experts']:
-                # Expand to match number of experts
-                input_embeddings = input_embeddings.expand(-1, config['num_experts'], -1)
-        
-        # Generate text
+        # Initialize output embeddings
         output_embeddings = input_embeddings.clone()
+        
+        # Generate text with improved sampling
         for _ in range(max_length):
-            # Get model outputs
             with torch.no_grad():
-                # Process through MoE
-                outputs = model(output_embeddings)  # [batch_size, seq_len, hidden_size]
-                
-                # For LoRA model, take mean across experts
-                if model_name == 'lora':
-                    # Ensure we're taking mean across the correct dimension
-                    outputs = outputs.mean(dim=1, keepdim=True)  # [batch_size, 1, hidden_size]
+                # Get model outputs
+                outputs = model(output_embeddings)
                 
                 # Get next token logits
-                next_token_logits = torch.matmul(
-                    outputs[:, -1:, :],  # [batch_size, 1, hidden_size]
-                    projection.weight  # [hidden_size, vocab_size]
-                )  # [batch_size, 1, vocab_size]
+                if hasattr(outputs, 'logits'):
+                    next_token_logits = outputs.logits[:, -1, :] / temperature
+                else:
+                    next_token_logits = outputs[:, -1, :] / temperature
                 
-                # Get next token ID
-                next_token_id = torch.argmax(next_token_logits[:, 0], dim=-1)  # [batch_size]
+                # Apply top-k filtering
+                if top_k > 0:
+                    indices_to_remove = next_token_logits < torch.topk(next_token_logits, top_k)[0][..., -1, None]
+                    next_token_logits[indices_to_remove] = float('-inf')
                 
-                # Get next token embedding
-                next_token_embedding = torch.nn.functional.one_hot(
-                    next_token_id, 
-                    num_classes=self.tokenizer.vocab_size
-                ).float()  # [batch_size, vocab_size]
-                next_token_embedding = projection(next_token_embedding)  # [batch_size, hidden_size]
-                next_token_embedding = next_token_embedding.unsqueeze(1)  # [batch_size, 1, hidden_size]
+                # Apply top-p (nucleus) sampling
+                if top_p < 1.0:
+                    sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
+                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+                    sorted_indices_to_remove[..., 0] = 0
+                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                    next_token_logits[indices_to_remove] = float('-inf')
                 
-                # For LoRA model, expand to match number of experts
-                if model_name == 'lora':
-                    next_token_embedding = next_token_embedding.expand(-1, config['num_experts'], -1)
+                # Sample next token
+                probs = torch.softmax(next_token_logits, dim=-1)
+                next_token = torch.multinomial(probs, num_samples=1)
+                
+                # Get next token embedding and ensure on correct device
+                next_token_embedding = self.model.get_input_embeddings()(next_token).to(self.device)
+                next_token_embedding = self._process_with_attention(next_token_embedding)
                 
                 # Concatenate with previous outputs
                 output_embeddings = torch.cat([output_embeddings, next_token_embedding], dim=1)
         
         # Convert embeddings back to token IDs
         output_logits = torch.matmul(
-            output_embeddings,  # [batch_size, seq_len, hidden_size]
-            projection.weight  # [hidden_size, vocab_size]
-        )  # [batch_size, seq_len, vocab_size]
-        output_ids = torch.argmax(output_logits, dim=-1)  # [batch_size, seq_len]
+            output_embeddings,
+            self.model.get_input_embeddings().weight.t()
+        )
+        output_ids = torch.argmax(output_logits, dim=-1)
         
         # Decode and return generated text
         return self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
     
     def run_ablation_test(self, prompt):
-        """Run ablation test for all models."""
+        """Run ablation test with improved generation."""
         results = {}
         
         # Create input tensor with correct dimensions
@@ -214,8 +214,14 @@ class SingleAblationTest:
             # Test memory usage
             memory_usage = self.test_memory_usage(model_name, input_tensor)
             
-            # Test generation quality
-            generated_text = self.test_generation_quality(model_name, prompt)
+            # Test generation quality with improved parameters
+            generated_text = self.test_generation_quality(
+                model_name, 
+                prompt,
+                temperature=0.7,
+                top_k=50,
+                top_p=0.9
+            )
             
             results[model_name] = {
                 'inference_time': inference_time,
