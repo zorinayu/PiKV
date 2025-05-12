@@ -1,0 +1,26 @@
+{
+    "pikv": {
+        "name": "pikv",
+        "path": "models/pikv",
+        "max_length": 32768,
+        "type": "custom"
+    },
+    "standard_moe": {
+        "name": "standard_moe",
+        "path": "models/standard_moe",
+        "max_length": 32768,
+        "type": "custom"
+    },
+    "llama-3.1-8b-instruct": {
+        "name": "llama-3.1-8b-instruct",
+        "path": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+        "max_length": 131072,
+        "type": "llama"
+    },
+    "glm-4-9b-chat": {
+        "name": "glm-4-9b-chat",
+        "path": "THUDM/glm-4-9b-chat",
+        "max_length": 131072,
+        "type": "glm"
+    }
+} 
