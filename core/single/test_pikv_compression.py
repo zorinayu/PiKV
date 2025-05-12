@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any, Iterable
 import os
 import sys
 
@@ -21,7 +21,7 @@ class CompressionTester:
     def __init__(self, hidden_size: int = 256):
         self.hidden_size = hidden_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.results = []
+        self.results: List[Dict[str, Any]] = []
         
         # 创建输出目录
         os.makedirs("results", exist_ok=True)
@@ -51,10 +51,10 @@ class CompressionTester:
         values: torch.Tensor,
         importance: Optional[torch.Tensor] = None,
         repeat: int = 10
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """测量压缩性能和质量"""
         # 准备结果字典
-        results = {}
+        results: Dict[str, Any] = {}
         
         # 缓存一份原始数据用于计算精度损失
         keys_cpu = keys.detach().cpu()
@@ -117,14 +117,14 @@ class CompressionTester:
     def run_compression_test(
         self,
         compressor_name: str,
-        compressor_params: Dict,
+        compressor_params: Dict[str, Any],
         batch_sizes: List[int] = [8],
         seq_lens: List[int] = [128],
         importance_levels: List[float] = [0.5],
         repeat: int = 10
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """运行压缩测试"""
-        test_results = []
+        test_results: List[Dict[str, Any]] = []
         
         # 创建压缩器
         if compressor_name == "pyramid":
@@ -178,7 +178,7 @@ class CompressionTester:
                     
                     # 保存结果
                     test_results.append(result)
-                    self.results.extend(test_results)
+                    self.results.append(result)
         
         return test_results
     
@@ -309,8 +309,8 @@ class CompressionTester:
         seq_lengths = [128, 256, 512, 1024, 2048]
         
         # 测试结果
-        time_results = {name: [] for name in compressors.keys()}
-        memory_results = {name: [] for name in compressors.keys()}
+        time_results: Dict[str, List[float]] = {name: [] for name in compressors.keys()}
+        memory_results: Dict[str, List[float]] = {name: [] for name in compressors.keys()}
         
         for seq_len in seq_lengths:
             print(f"\n测试序列长度: {seq_len}")
@@ -370,7 +370,7 @@ class CompressionTester:
         ax1.set_xlabel('压缩率 (compressed size / original size)')
         ax1.set_ylabel('模拟准确率', color='b')
         ax1.tick_params(axis='y', labelcolor='b')
-        ax1.set_ylim([0.7, 1.0])  # 调整准确率的y轴范围
+        ax1.set_ylim(0.7, 1.0)  # 修复: 调整准确率的y轴范围
         
         # 绘制加速率曲线
         acceleration_line = ax2.plot(compression_ratios, acceleration_rates, 'r-^', label='加速率')
@@ -379,7 +379,7 @@ class CompressionTester:
         
         # 添加图例
         lines = accuracy_line + acceleration_line
-        labels = [line.get_label() for line in lines]
+        labels: List[str] = [str(line.get_label()) for line in lines]  # 确保标签是字符串类型
         ax1.legend(lines, labels, loc='lower right')
         
         plt.title('PiKV压缩率与准确率/加速率关系')
