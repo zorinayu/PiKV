@@ -1,10 +1,14 @@
 # PiKV - Parallel Distributed MoE KV Cache Design
 
-PiKV (Parallel Distributed Mixture of Experts Key-Value Cache Design) is an advanced framework designed to optimize the management and compression of Key-Value (KV) caches in distributed Mixture of Experts (MoE) models. By leveraging parallel and distributed strategies, PiKV enhances inference efficiency and reduces memory and compute overhead in large-scale MoE deployments.
+PiKV (Parallel Distributed Key-Value Cache Design with Routing) is a serving framework designed to optimize the management and compression of Key-Value (KV) caches in Large Language Models training and inference. By leveraging parallel, distributed, sparsity and routing strategies, PiKV can improve training and inference efficiency and reduces memory and computation overhead.
 
 ## Features
 
-- **Parallel Prefetching and Communication Overlap**: PiKV overlaps memory read operations for model weights and KV-cache with collective communication, effectively hiding communication latency and improving throughput. This is inspired by the PRESERVE framework.
+- Routing - Reference to DeepSeek-V2, Sparsely-Gated MoE Layer; Futher research will look into Faster Transformer Decoding (kernel design) and Switch Transformers (Large Scale)
+- Compression - Reference to LoRA/LoRA+, PyramidKV/FastV
+- Streaming/Scheduling - Reference to Quest and StreamingLLM
+
+<!-- - **Parallel Prefetching and Communication Overlap**: PiKV overlaps memory read operations for model weights and KV-cache with collective communication, effectively hiding communication latency and improving throughput. This is inspired by the PRESERVE framework.
 
 - **Dynamic KV Cache Compression**: PiKV uses attention-based pyramidal patterns to allocate more KV memory to lower layers and less to higher layers, following the insights from PyramidKV.
 
@@ -12,7 +16,7 @@ PiKV (Parallel Distributed Mixture of Experts Key-Value Cache Design) is an adva
 
 - **KV Cache Streaming**: PiKV supports efficient KV streaming and checkpoint recovery using techniques influenced by MOONCAKE, enabling fast failover and state persistence in distributed inference.
 
-- **Memory Expansion Techniques**: Leveraging CXL-based memory disaggregation, PiKV enables KV cache offloading to host or external memory, reducing GPU memory bottlenecks.
+- **Memory Expansion Techniques**: Leveraging CXL-based memory disaggregation, PiKV enables KV cache offloading to host or external memory, reducing GPU memory bottlenecks. -->
 
 ## Installation
 
