@@ -4,9 +4,9 @@ PiKV (Parallel Distributed Key-Value Cache Design with Routing) is a serving fra
 
 ## Features
 
-- Routing - Reference to DeepSeek-V2, Sparsely-Gated MoE Layer; Futher research will look into Faster Transformer Decoding (kernel design) and Switch Transformers (Large Scale)
-- Compression - Reference to LoRA/LoRA+, PyramidKV/FastV
-- Streaming/Scheduling - Reference to Quest and StreamingLLM
+- Routing (PiKVRouting) - Reference to DeepSeek-V2, Sparsely-Gated MoE Layer; Futher research will look into Faster Transformer Decoding (kernel design) and Switch Transformers (Large Scale)
+- Compression (PiKVCompression) - Reference to LoRA/LoRA+, PyramidKV/FastV, Distillation
+- Streaming/Scheduling (PiKV Attention) - Reference to Quest and StreamingLLM
 
 <!-- - **Parallel Prefetching and Communication Overlap**: PiKV overlaps memory read operations for model weights and KV-cache with collective communication, effectively hiding communication latency and improving throughput. This is inspired by the PRESERVE framework.
 
