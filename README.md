@@ -30,6 +30,7 @@ pip install -r requirements.txt
 
 ## Usage
 
+#### Must Use Before for Distributed Computing models defined in the files in the Single Machine folder
 ```bash
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 ```
@@ -61,7 +62,7 @@ torchrun --nproc_per_node=8 \
     downstream_tasks/llm/next_tok_pred/d_transformers.py
 ```
 
-Result
+Result on 8xA100
 ```
 (mka) jovyan@w-lenge-large-4ceda59b6605447685173387f3a3f682-6d7cd77666-tk4vq:~/workspace/PiKV$ python downstream_tasks/llm/next_tok_pred/s_ntp.py 
 Training model...
@@ -375,6 +376,277 @@ Distributed environment cleaned up
 Distributed environment cleaned up
 Distributed environment cleaned up
 ```
+
+Result on 8xA800
+
+```
+(pikv) root@dsw-238653-84cd4c6f57-5cdq7:/mnt/workspace/PiKV# export PYTHONPATH=$PYTHONPATH:$(pwd)
+(pikv) root@dsw-238653-84cd4c6f57-5cdq7:/mnt/workspace/PiKV# torchrun --nproc_per_node=8     --nnodes=1     --node_rank=0     --master_addr=localhost     --master_port=23458     downstream_tasks/llm/next_tok_pred/d_transformers.py
+W0512 15:37:07.092000 47050 site-packages/torch/distributed/run.py:793] 
+W0512 15:37:07.092000 47050 site-packages/torch/distributed/run.py:793] *****************************************
+W0512 15:37:07.092000 47050 site-packages/torch/distributed/run.py:793] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0512 15:37:07.092000 47050 site-packages/torch/distributed/run.py:793] *****************************************
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 5, local_rank 5
+Successfully initialized distributed environment on rank 5
+Process started with rank 5, local_rank 5, world_size 8
+Rank 5: Loading model and tokenizer...
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 1, local_rank 1
+Successfully initialized distributed environment on rank 1
+Process started with rank 1, local_rank 1, world_size 8
+Rank 1: Loading model and tokenizer...
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 7, local_rank 7
+Successfully initialized distributed environment on rank 7
+Process started with rank 7, local_rank 7, world_size 8
+Rank 7: Loading model and tokenizer...
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 2, local_rank 2
+Successfully initialized distributed environment on rank 2
+Process started with rank 2, local_rank 2, world_size 8
+Rank 2: Loading model and tokenizer...
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 4, local_rank 4
+Successfully initialized distributed environment on rank 4
+Process started with rank 4, local_rank 4, world_size 8
+Rank 4: Loading model and tokenizer...
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 6, local_rank 6
+Successfully initialized distributed environment on rank 6
+Process started with rank 6, local_rank 6, world_size 8
+Rank 6: Loading model and tokenizer...
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 3, local_rank 3
+Successfully initialized distributed environment on rank 3
+Process started with rank 3, local_rank 3, world_size 8
+Rank 3: Loading model and tokenizer...
+Initializing DistributedPiKVCache...
+Initializing distributed environment on rank 0, local_rank 0
+Successfully initialized distributed environment on rank 0
+Process started with rank 0, local_rank 0, world_size 8
+Rank 0: Loading model and tokenizer...
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/_distutils_hack/__init__.py:53: UserWarning: Reliance on distutils from stdlib is deprecated. Users must rely on setuptools to provide the distutils module. Avoid importing distutils or import setuptools first, and avoid setting SETUPTOOLS_USE_DISTUTILS=stdlib. Register concerns at https://github.com/pypa/setuptools/issues/new?template=distutils-deprecation.yml
+  warnings.warn(
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/_distutils_hack/__init__.py:53: UserWarning: Reliance on distutils from stdlib is deprecated. Users must rely on setuptools to provide the distutils module. Avoid importing distutils or import setuptools first, and avoid setting SETUPTOOLS_USE_DISTUTILS=stdlib. Register concerns at https://github.com/pypa/setuptools/issues/new?template=distutils-deprecation.yml
+  warnings.warn(
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/_distutils_hack/__init__.py:53: UserWarning: Reliance on distutils from stdlib is deprecated. Users must rely on setuptools to provide the distutils module. Avoid importing distutils or import setuptools first, and avoid setting SETUPTOOLS_USE_DISTUTILS=stdlib. Register concerns at https://github.com/pypa/setuptools/issues/new?template=distutils-deprecation.yml
+  warnings.warn(
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/_distutils_hack/__init__.py:53: UserWarning: Reliance on distutils from stdlib is deprecated. Users must rely on setuptools to provide the distutils module. Avoid importing distutils or import setuptools first, and avoid setting SETUPTOOLS_USE_DISTUTILS=stdlib. Register concerns at https://github.com/pypa/setuptools/issues/new?template=distutils-deprecation.yml
+  warnings.warn(
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/_distutils_hack/__init__.py:53: UserWarning: Reliance on distutils from stdlib is deprecated. Users must rely on setuptools to provide the distutils module. Avoid importing distutils or import setuptools first, and avoid setting SETUPTOOLS_USE_DISTUTILS=stdlib. Register concerns at https://github.com/pypa/setuptools/issues/new?template=distutils-deprecation.yml
+  warnings.warn(
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/_distutils_hack/__init__.py:53: UserWarning: Reliance on distutils from stdlib is deprecated. Users must rely on setuptools to provide the distutils module. Avoid importing distutils or import setuptools first, and avoid setting SETUPTOOLS_USE_DISTUTILS=stdlib. Register concerns at https://github.com/pypa/setuptools/issues/new?template=distutils-deprecation.yml
+  warnings.warn(
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/_distutils_hack/__init__.py:53: UserWarning: Reliance on distutils from stdlib is deprecated. Users must rely on setuptools to provide the distutils module. Avoid importing distutils or import setuptools first, and avoid setting SETUPTOOLS_USE_DISTUTILS=stdlib. Register concerns at https://github.com/pypa/setuptools/issues/new?template=distutils-deprecation.yml
+  warnings.warn(
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/_distutils_hack/__init__.py:53: UserWarning: Reliance on distutils from stdlib is deprecated. Users must rely on setuptools to provide the distutils module. Avoid importing distutils or import setuptools first, and avoid setting SETUPTOOLS_USE_DISTUTILS=stdlib. Register concerns at https://github.com/pypa/setuptools/issues/new?template=distutils-deprecation.yml
+  warnings.warn(
+model.safetensors: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████| 548M/548M [00:49<00:00, 11.2MB/s]
+generation_config.json: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████| 124/124 [00:00<00:00, 1.08MB/s]
+Rank 4: Initializing DistributedPiKVMoE...
+Rank 5: Initializing DistributedPiKVMoE...
+Rank 0: Initializing DistributedPiKVMoE...
+Rank 5: Moving model to device cuda:5
+Rank 4: Moving model to device cuda:4
+Rank 2: Initializing DistributedPiKVMoE...
+Rank 6: Initializing DistributedPiKVMoE...
+Rank 0: Moving model to device cuda:0
+Rank 2: Moving model to device cuda:2
+Rank 6: Moving model to device cuda:6
+Rank 3: Initializing DistributedPiKVMoE...
+Rank 7: Initializing DistributedPiKVMoE...
+Rank 1: Initializing DistributedPiKVMoE...
+Rank 3: Moving model to device cuda:3
+Rank 7: Moving model to device cuda:7
+Rank 1: Moving model to device cuda:1
+Rank 4: Initialization complete
+Rank 0: Initialization complete
+
+Prompt: The quick brown fox
+Rank 5: Initialization complete
+Generating token 1/50
+Rank 2: Initialization complete
+Rank 6: Initialization complete
+Rank 1: Initialization complete
+Rank 3: Initialization complete
+Rank 7: Initialization complete
+Generating token 2/50
+Generating token 3/50
+Generating token 4/50
+Generating token 5/50
+Generating token 6/50
+Generating token 7/50
+Generating token 8/50
+Generating token 9/50
+Generating token 10/50
+Generating token 11/50
+Generating token 12/50
+Generating token 13/50
+Generating token 14/50
+Generating token 15/50
+Generating token 16/50
+Generating token 17/50
+Generating token 18/50
+Generating token 19/50
+Generating token 20/50
+Generating token 21/50
+Generating token 22/50
+Generating token 23/50
+Generating token 24/50
+Generating token 25/50
+Generating token 26/50
+Generating token 27/50
+Generating token 28/50
+Generating token 29/50
+Generating token 30/50
+Generating token 31/50
+Generating token 32/50
+Generating token 33/50
+Generating token 34/50
+Generating token 35/50
+Generating token 36/50
+Generating token 37/50
+Generating token 38/50
+Generating token 39/50
+Generating token 40/50
+Generating token 41/50
+Generating token 42/50
+Generating token 43/50
+Generating token 44/50
+Generating token 45/50
+Generating token 46/50
+Generating token 47/50
+Generating token 48/50
+Generating token 49/50
+Generating token 50/50
+Generated: The quick brown fox will often have a soft spot on the face.
+
+A great way to get the fox is to bring it into your home and put it on the fire.
+
+If you are using a grill and want to get the fox to move away
+
+Prompt: Once upon a time
+Generating token 1/50
+Generating token 2/50
+Generating token 3/50
+Generating token 4/50
+Generating token 5/50
+Generating token 6/50
+Generating token 7/50
+Generating token 8/50
+Generating token 9/50
+Generating token 10/50
+Generating token 11/50
+Generating token 12/50
+Generating token 13/50
+Generating token 14/50
+Generating token 15/50
+Generating token 16/50
+Generating token 17/50
+Generating token 18/50
+Generating token 19/50
+Generating token 20/50
+Generating token 21/50
+Generating token 22/50
+Generating token 23/50
+Generating token 24/50
+Generating token 25/50
+Generating token 26/50
+Generating token 27/50
+Generating token 28/50
+Generating token 29/50
+Generating token 30/50
+Generating token 31/50
+Generating token 32/50
+Generating token 33/50
+Generating token 34/50
+Generating token 35/50
+Generating token 36/50
+Generating token 37/50
+Generating token 38/50
+Generating token 39/50
+Generating token 40/50
+Generating token 41/50
+Generating token 42/50
+Generating token 43/50
+Generating token 44/50
+Generating token 45/50
+Generating token 46/50
+Generating token 47/50
+Generating token 48/50
+Generating token 49/50
+Generating token 50/50
+Generated: Once upon a time, he had never been to a doctor, and had never been to a doctor's office.
+
+But now, he was in the hospital, and he had never been to a doctor's office before.
+
+"I was very angry,"
+
+Prompt: In a galaxy far far away
+Generating token 1/50
+Generating token 2/50
+Generating token 3/50
+Generating token 4/50
+Generating token 5/50
+Generating token 6/50
+Generating token 7/50
+Generating token 8/50
+Generating token 9/50
+Generating token 10/50
+Generating token 11/50
+Generating token 12/50
+Generating token 13/50
+Generating token 14/50
+Generating token 15/50
+Generating token 16/50
+Generating token 17/50
+Generating token 18/50
+Generating token 19/50
+Generating token 20/50
+Generating token 21/50
+Generating token 22/50
+Generating token 23/50
+Generating token 24/50
+Generating token 25/50
+Generating token 26/50
+Generating token 27/50
+Generating token 28/50
+Generating token 29/50
+Generating token 30/50
+Generating token 31/50
+Generating token 32/50
+Generating token 33/50
+Generating token 34/50
+Generating token 35/50
+Generating token 36/50
+Generating token 37/50
+Generating token 38/50
+Generating token 39/50
+Generating token 40/50
+Generating token 41/50
+Generating token 42/50
+Generating token 43/50
+Generating token 44/50
+Generating token 45/50
+Generating token 46/50
+Generating token 47/50
+Generating token 48/50
+Generating token 49/50
+Generating token 50/50
+Generated: In a galaxy far far away, a huge black hole is lurking in the dark, and the only way to find it is to travel there.
+
+The discovery is the latest in a series of high-profile discoveries made by astronomers and scientists at the University of Texas at Austin
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+Distributed environment cleaned up
+```
+
 
 Ablation Tests
 | Model    | Inference Time (s) | Perplexity |
