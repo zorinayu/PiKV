@@ -230,7 +230,7 @@ class FastVideoCompressor(BaseCompressor):
         with torch.no_grad():
             self.frame_count += seq_len
             if seq_len > 0:
-                self.keyframe_ratio = keyframe_count / (batch_size * seq_len)
+                self.keyframe_ratio = torch.tensor(keyframe_count / (batch_size * seq_len))
             self.sample_count += 1
         
         return compressed_keys, compressed_values
@@ -240,7 +240,8 @@ class FastVideoCompressor(BaseCompressor):
         stats = super().get_compression_stats()
         
         # Estimated compression ratio based on keyframe ratio
-        effective_ratio = self.keyframe_ratio * 1.0 + (1 - self.keyframe_ratio) * self.compression_ratio
+        # Ensure this is a tensor so we can call .item() on it
+        effective_ratio = self.keyframe_ratio * 1.0 + (1 - self.keyframe_ratio) * torch.tensor(self.compression_ratio)
         
         stats.update({
             "keyframe_interval": self.keyframe_interval,

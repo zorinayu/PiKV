@@ -170,17 +170,16 @@ class LoRAPlusCompressor(LoRACompressor):
         self.ranks = sorted(ranks)  # Sort ranks in ascending order
         self.importance_thresholds = importance_thresholds
         
-        # Create multiple LoRA layers for different ranks
-        self.lora_layers = nn.ModuleList()
-        for rank in ranks:
-            # Create parameter dictionary to hold LoRA matrices for this rank
-            lora_params = nn.ParameterDict({
-                'key_lora_A': nn.Parameter(torch.zeros(hidden_size, rank)),
-                'key_lora_B': nn.Parameter(torch.zeros(rank, hidden_size)),
-                'value_lora_A': nn.Parameter(torch.zeros(hidden_size, rank)),
-                'value_lora_B': nn.Parameter(torch.zeros(rank, hidden_size))
-            })
-            self.lora_layers.append(lora_params)
+        # Create separate parameter lists for each rank level
+        # Use direct class members instead of ModuleList/ParameterDict to avoid linter errors
+        for i, rank in enumerate(ranks):
+            # Create LoRA matrices for keys at this rank
+            setattr(self, f'key_lora_A_{i}', nn.Parameter(torch.zeros(hidden_size, rank)))
+            setattr(self, f'key_lora_B_{i}', nn.Parameter(torch.zeros(rank, hidden_size)))
+            
+            # Create LoRA matrices for values at this rank
+            setattr(self, f'value_lora_A_{i}', nn.Parameter(torch.zeros(hidden_size, rank)))
+            setattr(self, f'value_lora_B_{i}', nn.Parameter(torch.zeros(rank, hidden_size)))
         
         # Initialize all LoRA weights
         self._init_all_weights()
@@ -198,15 +197,21 @@ class LoRAPlusCompressor(LoRACompressor):
         self.register_buffer('residual_scale', torch.tensor(1.0))
     
     def _init_all_weights(self):
-        """Initialize weights for all LoRA modules"""
-        for lora_params in self.lora_layers:
+        """Initialize weights for all LoRA matrices"""
+        for i in range(len(self.ranks)):
+            # Get LoRA matrices for this rank
+            key_A = getattr(self, f'key_lora_A_{i}')
+            key_B = getattr(self, f'key_lora_B_{i}')
+            value_A = getattr(self, f'value_lora_A_{i}')
+            value_B = getattr(self, f'value_lora_B_{i}')
+            
             # Use kaiming initialization for A matrices
-            nn.init.kaiming_uniform_(lora_params['key_lora_A'], a=math.sqrt(5))
-            nn.init.kaiming_uniform_(lora_params['value_lora_A'], a=math.sqrt(5))
+            nn.init.kaiming_uniform_(key_A, a=math.sqrt(5))
+            nn.init.kaiming_uniform_(value_A, a=math.sqrt(5))
             
             # Initialize B matrices to zero
-            nn.init.zeros_(lora_params['key_lora_B'])
-            nn.init.zeros_(lora_params['value_lora_B'])
+            nn.init.zeros_(key_B)
+            nn.init.zeros_(value_B)
     
     def _select_rank_index(self, importance: torch.Tensor) -> int:
         """Select rank index based on importance"""
@@ -258,7 +263,12 @@ class LoRAPlusCompressor(LoRACompressor):
         # Select rank based on importance
         rank_idx = self._select_rank_index(importance)
         selected_rank = self.ranks[rank_idx]
-        selected_layer = self.lora_layers[rank_idx]
+        
+        # Get LoRA matrices for selected rank
+        key_lora_A = getattr(self, f'key_lora_A_{rank_idx}')
+        key_lora_B = getattr(self, f'key_lora_B_{rank_idx}')
+        value_lora_A = getattr(self, f'value_lora_A_{rank_idx}')
+        value_lora_B = getattr(self, f'value_lora_B_{rank_idx}')
         
         # Update rank usage stats
         with torch.no_grad():
@@ -269,11 +279,11 @@ class LoRAPlusCompressor(LoRACompressor):
         values_flat = values.reshape(-1, hidden_size)  # [batch_size*seq_len, hidden_size]
         
         # Apply selected LoRA transformations to keys
-        key_delta = self.dropout(keys_flat @ selected_layer['key_lora_A']) @ selected_layer['key_lora_B']
+        key_delta = self.dropout(keys_flat @ key_lora_A) @ key_lora_B
         key_delta = key_delta * (self.scaling * self.residual_scale)
         
         # Apply selected LoRA transformations to values
-        value_delta = self.dropout(values_flat @ selected_layer['value_lora_A']) @ selected_layer['value_lora_B']
+        value_delta = self.dropout(values_flat @ value_lora_A) @ value_lora_B
         value_delta = value_delta * (self.scaling * self.residual_scale)
         
         # Combine with original tensors
