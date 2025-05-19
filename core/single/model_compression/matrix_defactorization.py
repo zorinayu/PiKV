@@ -170,17 +170,17 @@ class LoRAPlusCompressor(LoRACompressor):
         self.ranks = sorted(ranks)  # Sort ranks in ascending order
         self.importance_thresholds = importance_thresholds
         
-        # Create multiple LoRA modules for different ranks
-        self.lora_modules = nn.ModuleList()
+        # Create multiple LoRA layers for different ranks
+        self.lora_layers = nn.ModuleList()
         for rank in ranks:
-            self.lora_modules.append(
-                nn.ModuleDict({
-                    'key_lora_A': nn.Parameter(torch.zeros(hidden_size, rank)),
-                    'key_lora_B': nn.Parameter(torch.zeros(rank, hidden_size)),
-                    'value_lora_A': nn.Parameter(torch.zeros(hidden_size, rank)),
-                    'value_lora_B': nn.Parameter(torch.zeros(rank, hidden_size))
-                })
-            )
+            # Create parameter dictionary to hold LoRA matrices for this rank
+            lora_params = nn.ParameterDict({
+                'key_lora_A': nn.Parameter(torch.zeros(hidden_size, rank)),
+                'key_lora_B': nn.Parameter(torch.zeros(rank, hidden_size)),
+                'value_lora_A': nn.Parameter(torch.zeros(hidden_size, rank)),
+                'value_lora_B': nn.Parameter(torch.zeros(rank, hidden_size))
+            })
+            self.lora_layers.append(lora_params)
         
         # Initialize all LoRA weights
         self._init_all_weights()
@@ -199,14 +199,14 @@ class LoRAPlusCompressor(LoRACompressor):
     
     def _init_all_weights(self):
         """Initialize weights for all LoRA modules"""
-        for i, module_dict in enumerate(self.lora_modules):
+        for lora_params in self.lora_layers:
             # Use kaiming initialization for A matrices
-            nn.init.kaiming_uniform_(module_dict['key_lora_A'], a=math.sqrt(5))
-            nn.init.kaiming_uniform_(module_dict['value_lora_A'], a=math.sqrt(5))
+            nn.init.kaiming_uniform_(lora_params['key_lora_A'], a=math.sqrt(5))
+            nn.init.kaiming_uniform_(lora_params['value_lora_A'], a=math.sqrt(5))
             
             # Initialize B matrices to zero
-            nn.init.zeros_(module_dict['key_lora_B'])
-            nn.init.zeros_(module_dict['value_lora_B'])
+            nn.init.zeros_(lora_params['key_lora_B'])
+            nn.init.zeros_(lora_params['value_lora_B'])
     
     def _select_rank_index(self, importance: torch.Tensor) -> int:
         """Select rank index based on importance"""
@@ -258,7 +258,7 @@ class LoRAPlusCompressor(LoRACompressor):
         # Select rank based on importance
         rank_idx = self._select_rank_index(importance)
         selected_rank = self.ranks[rank_idx]
-        selected_module = self.lora_modules[rank_idx]
+        selected_layer = self.lora_layers[rank_idx]
         
         # Update rank usage stats
         with torch.no_grad():
@@ -269,11 +269,11 @@ class LoRAPlusCompressor(LoRACompressor):
         values_flat = values.reshape(-1, hidden_size)  # [batch_size*seq_len, hidden_size]
         
         # Apply selected LoRA transformations to keys
-        key_delta = self.dropout(keys_flat @ selected_module['key_lora_A']) @ selected_module['key_lora_B']
+        key_delta = self.dropout(keys_flat @ selected_layer['key_lora_A']) @ selected_layer['key_lora_B']
         key_delta = key_delta * (self.scaling * self.residual_scale)
         
         # Apply selected LoRA transformations to values
-        value_delta = self.dropout(values_flat @ selected_module['value_lora_A']) @ selected_module['value_lora_B']
+        value_delta = self.dropout(values_flat @ selected_layer['value_lora_A']) @ selected_layer['value_lora_B']
         value_delta = value_delta * (self.scaling * self.residual_scale)
         
         # Combine with original tensors
