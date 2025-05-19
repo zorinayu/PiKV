@@ -660,6 +660,15 @@ Ablation Tests
 | ADAPTIVE | 0.0513             | 4.490      |
 | PIKV     | 0.0606             | 4.196      |
 
+For Model Compression Comparison
+
+```bash
+# For text generation with a specific compressor
+python downstream_tasks/llm/next_tok_pred/d_transformers_compression.py --model gpt2 --method pyramid --ratio 0.5
+
+# For comprehensive evaluation of different compressors
+python downstream_tasks/llm/next_tok_pred/d_transformers_compression.py --model gpt2 --evaluate
+```
 
 ### 2. RAG (Retrieval-Augmented Generation)
 
