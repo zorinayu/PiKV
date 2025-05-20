@@ -812,7 +812,7 @@ If you use PiKV in your work, please cite:
 ```bibtex
 @misc{pikv2025,
   title={PiKV: Parallel Distributed MoE KV Cache Design},
-  author={Dong Liu},
+  author={Dong Liu, Yanxuan Yu, Ying Nian Wu},
   year={2025},
   howpublished={\url{https://github.com/NoakLiu/PiKV}}
 }
