@@ -69,17 +69,22 @@ class DistributedPiKVCacheWithDistillation:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         
-        # Initialize PiKV MoE
-        print(f"Rank {self.rank}: Initializing DistributedPiKVMoE...")
-        self.hidden_size = self.model.config.hidden_size
-        self.pikv = DistributedPiKVMoE().to(self.device)
-        
-        # Store configuration
+        # Get model configuration
+        self.hidden_size = self.model.config.hidden_size  # Use actual model hidden size
         self.max_length = max_length
         self.use_distillation = use_distillation
         self.teacher_hidden_size = teacher_hidden_size or (self.hidden_size * 2)
         self.distillation_temperature = distillation_temperature
         self.distillation_alpha = distillation_alpha
+        
+        # Update global config with actual model dimensions
+        from core.single.config import config
+        config['hidden_size'] = self.hidden_size
+        config['vocab_size'] = self.model.config.vocab_size
+        
+        # Initialize Distributed PiKV MoE with correct hidden size
+        print(f"Rank {self.rank}: Initializing DistributedPiKVMoE...")
+        self.pikv = DistributedPiKVMoE(rank=4, alpha=1.0)
         
         # Initialize knowledge distillation if enabled
         if self.use_distillation:
