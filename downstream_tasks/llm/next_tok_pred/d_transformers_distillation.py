@@ -277,8 +277,12 @@ class DistributedPiKVCacheWithDistillation:
                     
                     if teacher_outputs is not None and teacher_outputs['logits'] is not None:
                         try:
+                            # Ensure distillation_module is not None (type assertion for linter)
+                            distillation_module = self.distillation_module
+                            assert distillation_module is not None, "Distillation module should not be None"
+                            
                             # Compute distillation loss
-                            distill_loss, distill_loss_dict = self.distillation_module(
+                            distill_loss, distill_loss_dict = distillation_module(
                                 student_logits=outputs.logits,
                                 teacher_logits=teacher_outputs['logits'],
                                 student_features=outputs.logits,  # Use logits as features
@@ -296,7 +300,7 @@ class DistributedPiKVCacheWithDistillation:
                         except Exception as e:
                             if self.rank == 0:
                                 print(f"Warning: Distillation failed at token {i}: {e}")
-                            # Continue without distillation for this token
+                                # Continue without distillation for this token
                 
                 # Get next token logits
                 next_token_logits = outputs.logits[:, -1, :] / temperature
