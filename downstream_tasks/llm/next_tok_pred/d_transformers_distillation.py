@@ -82,27 +82,26 @@ class DistributedPiKVCacheWithDistillation:
             
             print(f"Rank {self.rank}: Initializing knowledge distillation...")
             
+            # Create teacher model
+            self.teacher_model = create_teacher_model(
+                hidden_size=self.teacher_hidden_size,
+                num_experts=4,
+                num_layers=6,
+                vocab_size=self.model.config.vocab_size
+            ).to(self.device)
+            
             # Create distillation module
             self.distillation_module = PiKVDistillation(
                 student_hidden_size=self.hidden_size,
                 teacher_hidden_size=self.teacher_hidden_size,
-                num_experts=config['num_experts'],
-                temperature=distillation_temperature,
-                expert_distill_weight=0.4,
-                cache_distill_weight=0.3
-            )
-            
-            # Create teacher model (larger model for distillation)
-            self.teacher_model = create_teacher_model(
-                hidden_size=self.teacher_hidden_size,
-                num_experts=config['num_experts']
-            )
-            
-            # Freeze teacher model parameters
-            for param in self.teacher_model.parameters():
-                param.requires_grad = False
+                num_experts=4,
+                temperature=self.distillation_temperature
+            ).to(self.device)
             
             print(f"Rank {self.rank}: Knowledge Distillation enabled with teacher hidden size: {self.teacher_hidden_size}")
+        else:
+            self.teacher_model = None
+            self.distillation_module = None
         
         # Move model, PiKV, and distillation components to device
         self.device = torch.device(f"cuda:{self.local_rank}")
@@ -110,9 +109,13 @@ class DistributedPiKVCacheWithDistillation:
         self.model = self.model.to(self.device)
         self.pikv = self.pikv.to(self.device)
         
-        if self.use_distillation:
+        if self.use_distillation and self.teacher_model is not None:
             self.teacher_model = self.teacher_model.to(self.device)
             self.distillation_module = self.distillation_module.to(self.device)
+            
+            # Freeze teacher model parameters
+            for param in self.teacher_model.parameters():
+                param.requires_grad = False
         
         # Initialize KV cache
         self.kv_cache = {}
@@ -157,7 +160,7 @@ class DistributedPiKVCacheWithDistillation:
     
     def _get_teacher_outputs(self, input_ids: torch.Tensor):
         """Get teacher model outputs for distillation."""
-        if not self.use_distillation:
+        if not self.use_distillation or self.teacher_model is None:
             return None
         
         with torch.no_grad():
@@ -169,14 +172,36 @@ class DistributedPiKVCacheWithDistillation:
                 device=input_ids.device
             )
             
-            # Get teacher outputs
+            # Get teacher outputs - this returns a dict
             teacher_outputs = self.teacher_model(teacher_input)
             
+            # Extract logits from the teacher outputs dict
+            if isinstance(teacher_outputs, dict):
+                teacher_logits = teacher_outputs.get('logits')
+                teacher_features = teacher_outputs.get('features', teacher_input)
+                expert_outputs = teacher_outputs.get('expert_outputs')
+                routing_weights = teacher_outputs.get('routing_weights')
+            else:
+                # If teacher returns tensor directly
+                teacher_logits = teacher_outputs
+                teacher_features = teacher_input
+                expert_outputs = None
+                routing_weights = None
+            
+            # Ensure teacher_logits has the correct shape for vocabulary
+            if teacher_logits is not None and teacher_logits.shape[-1] != self.model.config.vocab_size:
+                if not hasattr(self, 'vocab_projection'):
+                    self.vocab_projection = nn.Linear(
+                        teacher_logits.shape[-1], 
+                        self.model.config.vocab_size
+                    ).to(teacher_logits.device)
+                teacher_logits = self.vocab_projection(teacher_logits)
+            
             return {
-                'logits': teacher_outputs,
-                'features': teacher_input,  # Use input as features for simplicity
-                'expert_outputs': None,  # Could be implemented if needed
-                'routing_weights': None  # Could be implemented if needed
+                'logits': teacher_logits,
+                'features': teacher_features,
+                'expert_outputs': expert_outputs,
+                'routing_weights': routing_weights
             }
     
     def generate_with_distillation(
@@ -235,27 +260,32 @@ class DistributedPiKVCacheWithDistillation:
                 outputs.past_key_values = tuple(new_past_key_values)
                 
                 # Apply knowledge distillation if enabled and using teacher
-                if self.use_distillation and use_teacher:
+                if self.use_distillation and use_teacher and self.distillation_module is not None:
                     # Get teacher outputs
                     teacher_outputs = self._get_teacher_outputs(output_ids)
                     
-                    if teacher_outputs is not None:
-                        # Compute distillation loss
-                        distill_loss, distill_loss_dict = self.distillation_module(
-                            student_logits=outputs.logits,
-                            teacher_logits=teacher_outputs['logits'],
-                            student_features=outputs.logits,  # Use logits as features
-                            teacher_features=teacher_outputs['features'],
-                            student_expert_outputs=expert_outputs_list,
-                            teacher_expert_outputs=teacher_outputs.get('expert_outputs'),
-                            teacher_routing_weights=teacher_outputs.get('routing_weights'),
-                            targets=None
-                        )
-                        
-                        distillation_losses.append(distill_loss.item())
-                        
-                        if self.rank == 0 and i % 10 == 0:
-                            print(f"Distillation loss at token {i}: {distill_loss.item():.4f}")
+                    if teacher_outputs is not None and teacher_outputs['logits'] is not None:
+                        try:
+                            # Compute distillation loss
+                            distill_loss, distill_loss_dict = self.distillation_module(
+                                student_logits=outputs.logits,
+                                teacher_logits=teacher_outputs['logits'],
+                                student_features=outputs.logits,  # Use logits as features
+                                teacher_features=teacher_outputs['features'],
+                                student_expert_outputs=expert_outputs_list if expert_outputs_list else None,
+                                teacher_expert_outputs=teacher_outputs.get('expert_outputs'),
+                                teacher_routing_weights=teacher_outputs.get('routing_weights'),
+                                targets=None
+                            )
+                            
+                            distillation_losses.append(distill_loss.item())
+                            
+                            if self.rank == 0 and i % 10 == 0:
+                                print(f"Distillation loss at token {i}: {distill_loss.item():.4f}")
+                        except Exception as e:
+                            if self.rank == 0:
+                                print(f"Warning: Distillation failed at token {i}: {e}")
+                            # Continue without distillation for this token
                 
                 # Get next token logits
                 next_token_logits = outputs.logits[:, -1, :] / temperature
@@ -307,38 +337,54 @@ class DistributedPiKVCacheWithDistillation:
         optimizer: Optional[torch.optim.Optimizer] = None
     ):
         """Perform a single distillation training step."""
-        if not self.use_distillation:
+        if not self.use_distillation or self.distillation_module is None:
             print(f"Rank {self.rank}: Distillation not enabled")
             return {}
         
-        # Get student outputs
-        student_outputs = self.model(input_data, return_dict=True)
-        
-        # Process through PiKV
-        processed_features = self._process_with_pikv(student_outputs.logits)
-        
-        # Get teacher outputs
-        teacher_outputs = self._get_teacher_outputs(input_data)
-        
-        if teacher_outputs is None:
+        try:
+            # Get student outputs
+            student_outputs = self.model(input_data, return_dict=True)
+            
+            # Process through PiKV
+            processed_features = self._process_with_pikv(student_outputs.logits)
+            
+            # Get teacher outputs
+            teacher_outputs = self._get_teacher_outputs(input_data)
+            
+            if teacher_outputs is None or teacher_outputs['logits'] is None:
+                return {}
+            
+            # Compute distillation loss
+            distill_loss, distill_loss_dict = self.distillation_module(
+                student_logits=student_outputs.logits,
+                teacher_logits=teacher_outputs['logits'],
+                student_features=processed_features,
+                teacher_features=teacher_outputs['features'],
+                student_expert_outputs=None,  # Could be implemented if needed
+                teacher_expert_outputs=teacher_outputs.get('expert_outputs'),
+                teacher_routing_weights=teacher_outputs.get('routing_weights'),
+                targets=targets
+            )
+            
+            # Backward pass if optimizer is provided
+            if optimizer is not None:
+                optimizer.zero_grad()
+                distill_loss.backward()
+                optimizer.step()
+            
+            # Convert tensor values to scalars for return
+            result = {}
+            for key, value in distill_loss_dict.items():
+                if isinstance(value, torch.Tensor):
+                    result[key] = value.item()
+                else:
+                    result[key] = value
+            
+            return result
+            
+        except Exception as e:
+            print(f"Rank {self.rank}: Error in distillation_training_step: {e}")
             return {}
-        
-        # Compute distillation loss
-        distill_loss, distill_loss_dict = self.distillation_module(
-            student_logits=student_outputs.logits,
-            teacher_logits=teacher_outputs['logits'],
-            student_features=processed_features,
-            teacher_features=teacher_outputs['features'],
-            targets=targets
-        )
-        
-        # Backward pass if optimizer is provided
-        if optimizer is not None:
-            optimizer.zero_grad()
-            distill_loss.backward()
-            optimizer.step()
-        
-        return distill_loss_dict
     
     def save_checkpoint(self, path: str):
         """Save model checkpoint with distillation components."""
@@ -352,7 +398,7 @@ class DistributedPiKVCacheWithDistillation:
             'distillation_alpha': getattr(self, 'distillation_alpha', None)
         }
         
-        if self.use_distillation:
+        if self.use_distillation and self.teacher_model is not None and self.distillation_module is not None:
             checkpoint['teacher_state_dict'] = self.teacher_model.state_dict()
             checkpoint['distillation_state_dict'] = self.distillation_module.state_dict()
         
@@ -367,7 +413,8 @@ class DistributedPiKVCacheWithDistillation:
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.pikv.load_state_dict(checkpoint['pikv_state_dict'])
         
-        if checkpoint.get('use_distillation', False) and self.use_distillation:
+        if (checkpoint.get('use_distillation', False) and self.use_distillation and 
+            self.teacher_model is not None and self.distillation_module is not None):
             if 'teacher_state_dict' in checkpoint:
                 self.teacher_model.load_state_dict(checkpoint['teacher_state_dict'])
             if 'distillation_state_dict' in checkpoint:

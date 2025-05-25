@@ -362,7 +362,8 @@ class PiKVDistillation(nn.Module):
 def create_teacher_model(
     hidden_size: int,
     num_experts: int,
-    num_layers: int = 6
+    num_layers: int = 6,
+    vocab_size: int = 50257
 ) -> nn.Module:
     """
     创建教师模型 - 通常是更大、更强的模型
@@ -371,6 +372,7 @@ def create_teacher_model(
         hidden_size: 隐藏层大小
         num_experts: 专家数量
         num_layers: 层数
+        vocab_size: 词汇表大小
     
     Returns:
         teacher_model: 教师模型
@@ -400,7 +402,7 @@ def create_teacher_model(
             )
             
             # 输出投影
-            self.output_proj = nn.Linear(hidden_size, config.get('vocab_size', 50257))
+            self.output_proj = nn.Linear(hidden_size, vocab_size)
         
         def forward(self, x):
             batch_size, seq_len, hidden_size = x.shape
