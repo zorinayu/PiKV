@@ -60,7 +60,7 @@ class DistributedPiKVCacheWithDistillation:
         # Set device first before using it
         self.device = torch.device(f"cuda:{self.local_rank}" if torch.cuda.is_available() else "cpu")
         
-        # Initialize model and tokenizer
+        # Load model and tokenizer
         print(f"Rank {self.rank}: Loading model and tokenizer...")
         self.model = AutoModelForCausalLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -69,18 +69,21 @@ class DistributedPiKVCacheWithDistillation:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         
-        # Get model configuration
+        # Get model configuration and update global config FIRST
         self.hidden_size = self.model.config.hidden_size  # Use actual model hidden size
+        
+        # Update global config with actual model dimensions BEFORE creating PiKV
+        from core.single.config import config
+        config['hidden_size'] = self.hidden_size
+        config['vocab_size'] = self.model.config.vocab_size
+        print(f"Rank {self.rank}: Updated config - hidden_size: {self.hidden_size}, vocab_size: {self.model.config.vocab_size}")
+        
+        # Store configuration
         self.max_length = max_length
         self.use_distillation = use_distillation
         self.teacher_hidden_size = teacher_hidden_size or (self.hidden_size * 2)
         self.distillation_temperature = distillation_temperature
         self.distillation_alpha = distillation_alpha
-        
-        # Update global config with actual model dimensions
-        from core.single.config import config
-        config['hidden_size'] = self.hidden_size
-        config['vocab_size'] = self.model.config.vocab_size
         
         # Initialize Distributed PiKV MoE with correct hidden size
         print(f"Rank {self.rank}: Initializing DistributedPiKVMoE...")
