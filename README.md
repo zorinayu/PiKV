@@ -8,16 +8,6 @@ PiKV (Parallel Distributed Key-Value Cache Design with Routing) is a serving fra
 - Compression (PiKVCompression) - Reference to LoRA/LoRA+, PyramidKV/FastV, Distillation
 - Streaming/Scheduling (PiKV Attention) - Reference to Quest and StreamingLLM
 
-<!-- - **Parallel Prefetching and Communication Overlap**: PiKV overlaps memory read operations for model weights and KV-cache with collective communication, effectively hiding communication latency and improving throughput. This is inspired by the PRESERVE framework.
-
-- **Dynamic KV Cache Compression**: PiKV uses attention-based pyramidal patterns to allocate more KV memory to lower layers and less to higher layers, following the insights from PyramidKV.
-
-- **Query-Aware KV Cache Selection**: PiKV prioritizes important tokens for caching using query-attention relevance, loading only the most critical KV pairs, as proposed in Quest.
-
-- **KV Cache Streaming**: PiKV supports efficient KV streaming and checkpoint recovery using techniques influenced by MOONCAKE, enabling fast failover and state persistence in distributed inference.
-
-- **Memory Expansion Techniques**: Leveraging CXL-based memory disaggregation, PiKV enables KV cache offloading to host or external memory, reducing GPU memory bottlenecks. -->
-
 ## Installation
 
 ```bash
@@ -817,3 +807,35 @@ If you use PiKV in your work, please cite:
   howpublished={\url{https://github.com/NoakLiu/PiKV}}
 }
 ```
+
+## License
+
+This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
+
+### License Summary
+
+- ✅ **Commercial use** - You can use this software for commercial purposes
+- ✅ **Modification** - You can modify the source code
+- ✅ **Distribution** - You can distribute the software
+- ✅ **Patent use** - This license provides an express grant of patent rights from contributors
+- ✅ **Private use** - You can use this software for private purposes
+
+### Research and Academic Use
+
+If you use this software in academic research, please:
+1. Cite the relevant papers (see [Citation](#citation) section)
+2. Acknowledge the PiKV project contributors
+3. Comply with your institution's research ethics guidelines
+
+### Contributing
+
+We are welcome to your valuable contribution to this projects!!!.
+
+**Copyright 2024 PiKV Contributors**
+
+Licensed under the Apache License, Version 2.0. You may obtain a copy of the License at: http://www.apache.org/licenses/LICENSE-2.0
+
+## Contact
+
+To contact with the PiKV project team, please email dong.liu.dl2367@yale.edu
+
