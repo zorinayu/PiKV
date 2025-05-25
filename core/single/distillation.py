@@ -58,6 +58,22 @@ class KnowledgeDistillationLoss(nn.Module):
         """
         loss_dict = {}
         
+        # 确保logits维度匹配
+        if student_logits.shape != teacher_logits.shape:
+            # 如果序列长度不匹配，截断到较短的长度
+            min_seq_len = min(student_logits.size(1), teacher_logits.size(1))
+            student_logits = student_logits[:, :min_seq_len, :]
+            teacher_logits = teacher_logits[:, :min_seq_len, :]
+            
+            # 如果词汇表大小不匹配，投影teacher logits
+            if student_logits.size(-1) != teacher_logits.size(-1):
+                if not hasattr(self, 'logits_adapter'):
+                    self.logits_adapter = nn.Linear(
+                        teacher_logits.size(-1), 
+                        student_logits.size(-1)
+                    ).to(teacher_logits.device)
+                teacher_logits = self.logits_adapter(teacher_logits)
+        
         # 1. 标准知识蒸馏损失 (Soft Target Loss)
         student_soft = F.log_softmax(student_logits / self.temperature, dim=-1)
         teacher_soft = F.softmax(teacher_logits / self.temperature, dim=-1)
@@ -68,15 +84,29 @@ class KnowledgeDistillationLoss(nn.Module):
         # 2. 真实标签损失 (Hard Target Loss)
         hard_loss = torch.tensor(0.0, device=student_logits.device)
         if targets is not None:
+            # 确保targets与logits的序列长度匹配
+            if targets.size(1) != student_logits.size(1):
+                min_seq_len = min(targets.size(1), student_logits.size(1))
+                targets = targets[:, :min_seq_len]
+                student_logits_for_ce = student_logits[:, :min_seq_len, :]
+            else:
+                student_logits_for_ce = student_logits
+            
             # 重塑为2D进行交叉熵计算
-            student_logits_2d = student_logits.view(-1, student_logits.size(-1))
-            targets_1d = targets.view(-1)
+            student_logits_2d = student_logits_for_ce.reshape(-1, student_logits_for_ce.size(-1))
+            targets_1d = targets.reshape(-1)
             hard_loss = self.ce_loss(student_logits_2d, targets_1d)
             loss_dict['hard_loss'] = hard_loss
         
         # 3. 特征匹配损失 (Feature Matching Loss)
         feature_loss = torch.tensor(0.0, device=student_logits.device)
         if student_features is not None and teacher_features is not None:
+            # 确保特征的序列长度匹配
+            if student_features.size(1) != teacher_features.size(1):
+                min_seq_len = min(student_features.size(1), teacher_features.size(1))
+                student_features = student_features[:, :min_seq_len, :]
+                teacher_features = teacher_features[:, :min_seq_len, :]
+            
             # 确保特征维度匹配
             if student_features.shape != teacher_features.shape:
                 # 如果维度不匹配，使用线性投影对齐
@@ -93,6 +123,13 @@ class KnowledgeDistillationLoss(nn.Module):
         # 4. 注意力转移损失 (Attention Transfer Loss)
         attention_loss = torch.tensor(0.0, device=student_logits.device)
         if student_attention is not None and teacher_attention is not None:
+            # 确保注意力权重维度匹配
+            if student_attention.shape != teacher_attention.shape:
+                # 简单的维度对齐策略
+                min_shape = [min(s, t) for s, t in zip(student_attention.shape, teacher_attention.shape)]
+                student_attention = student_attention[:min_shape[0], :min_shape[1]]
+                teacher_attention = teacher_attention[:min_shape[0], :min_shape[1]]
+            
             # 计算注意力图的MSE损失
             attention_loss = self.mse_loss(student_attention, teacher_attention)
             loss_dict['attention_loss'] = attention_loss

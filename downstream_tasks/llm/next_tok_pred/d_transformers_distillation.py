@@ -326,6 +326,12 @@ class DistributedPiKVCacheWithDistillation:
         
         try:
             with torch.no_grad():
+                # 确保input_ids是正确的形状 [batch_size, seq_len]
+                if input_ids.dim() == 1:
+                    input_ids = input_ids.unsqueeze(0)
+                
+                batch_size, seq_len = input_ids.shape
+                
                 # 使用学生模型的嵌入层来获取教师模型的输入
                 # 这确保了教师和学生使用相同的token表示
                 student_embeddings = self.model.transformer.wte(input_ids)  # [batch_size, seq_len, 768]
@@ -520,6 +526,12 @@ class DistributedPiKVCacheWithDistillation:
         
         try:
             # input_data should be token IDs [batch_size, seq_len]
+            # 确保input_data是正确的形状
+            if input_data.dim() == 1:
+                input_data = input_data.unsqueeze(0)
+            
+            batch_size, seq_len = input_data.shape
+            
             # Get student outputs
             student_outputs = self.model(input_data, return_dict=True)
             
