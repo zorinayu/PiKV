@@ -85,21 +85,21 @@ class DistributedPiKVCacheWithDistillation:
         if self.use_distillation:
             print(f"Rank {self.rank}: Initializing knowledge distillation...")
             
-            # Create teacher model
+            # Create teacher model (without moving to device yet)
             self.teacher_model = create_teacher_model(
                 hidden_size=self.teacher_hidden_size,
                 num_experts=4,
                 num_layers=6,
                 vocab_size=self.model.config.vocab_size
-            ).to(self.device)
+            )
             
-            # Create distillation module
+            # Create distillation module (without moving to device yet)
             self.distillation_module = PiKVDistillation(
                 student_hidden_size=self.hidden_size,
                 teacher_hidden_size=self.teacher_hidden_size,
                 num_experts=4,
                 temperature=self.distillation_temperature
-            ).to(self.device)
+            )
             
             print(f"Rank {self.rank}: Knowledge Distillation enabled with teacher hidden size: {self.teacher_hidden_size}")
         else:
