@@ -5,6 +5,7 @@ from .config import config
 from .kv_cache_compression import KVCacheCompressor
 from .routing_strategy import AdaptiveRouter
 from .lora import LoRALayer, LoRAExpert, LoRAKVCache
+from .distillation import PiKVDistillation, create_teacher_model, distillation_training_step
 from .shared import ExternalMemoryCache
 import math
 
@@ -69,8 +70,10 @@ class KVCache(nn.Module):
             self.values.copy_(data.unsqueeze(0).expand(self.size, -1))
 
 class PiKVMoE(nn.Module):
-    def __init__(self, rank=4, alpha=1.0):
+    def __init__(self, rank=4, alpha=1.0, use_distillation=False, teacher_hidden_size=None):
         super(PiKVMoE, self).__init__()
+        self.use_distillation = use_distillation
+        
         self.experts = nn.ModuleList([
             LoRAExpert(config['hidden_size'], rank=rank, alpha=alpha)
             for _ in range(config['num_experts'])
@@ -108,6 +111,30 @@ class PiKVMoE(nn.Module):
         self.use_memory_expansion = config.get('use_memory_expansion', False)
         if self.use_memory_expansion:
             self.external_cache = ExternalMemoryCache()
+        
+        # Knowledge Distillation Setup
+        if use_distillation:
+            self.teacher_hidden_size = teacher_hidden_size or config['hidden_size'] * 2
+            self.distillation_module = PiKVDistillation(
+                student_hidden_size=config['hidden_size'],
+                teacher_hidden_size=self.teacher_hidden_size,
+                num_experts=config['num_experts'],
+                temperature=4.0,
+                expert_distill_weight=0.4,
+                cache_distill_weight=0.3
+            )
+            
+            # Create teacher model (can be loaded from checkpoint)
+            self.teacher_model = create_teacher_model(
+                hidden_size=self.teacher_hidden_size,
+                num_experts=config['num_experts']
+            )
+            
+            # Freeze teacher model parameters
+            for param in self.teacher_model.parameters():
+                param.requires_grad = False
+            
+            print(f"Knowledge Distillation enabled with teacher hidden size: {self.teacher_hidden_size}")
 
     def pyramidal_cache_allocation(self):
         """
@@ -153,8 +180,7 @@ class PiKVMoE(nn.Module):
         # Update pointer
         self.cache_ptrs[expert_idx] = (ptr + 1) % cache.size
     
-    def forward(self, x, query=None, return_loss=False):
-        # if with query, we can compute token importance then use lora
+    def forward(self, x, query=None, return_loss=False, targets=None, use_teacher=False):
         # Convert input to float if it's not already
         if x.dtype != torch.float32:
             x = x.to(torch.float32)
@@ -172,10 +198,14 @@ class PiKVMoE(nn.Module):
         batch_size, seq_len, hidden_size = x.shape
         expert_output = torch.zeros(batch_size, seq_len, hidden_size, device=x.device)
         
+        # Collect expert outputs for distillation
+        expert_outputs_list = []
+        
         # Process each expert
         for i, expert in enumerate(self.experts):
             # Get expert output with LoRA
             expert_output_i = expert(x)  # [batch_size, seq_len, hidden_size]
+            expert_outputs_list.append(expert_output_i)
             
             # Get cached values
             cached_values = self.kv_caches[i].get_all()
@@ -191,9 +221,83 @@ class PiKVMoE(nn.Module):
             expert_output += expert_output_i * routing_weights[:, :, i].unsqueeze(-1)
         
         # Project to vocabulary size if needed
+        logits = self.vocab_proj(expert_output)
+        
+        # Knowledge Distillation
+        distill_loss = torch.tensor(0.0, device=x.device)
+        if self.use_distillation and self.training and use_teacher:
+            # Get teacher outputs
+            with torch.no_grad():
+                teacher_outputs = self.teacher_model(x)
+            
+            # Compute distillation loss
+            distill_loss, distill_loss_dict = self.distillation_module(
+                student_logits=logits,
+                teacher_logits=teacher_outputs['logits'],
+                student_features=expert_output,
+                teacher_features=teacher_outputs['features'],
+                student_expert_outputs=expert_outputs_list,
+                teacher_expert_outputs=teacher_outputs.get('expert_outputs'),
+                teacher_routing_weights=teacher_outputs.get('routing_weights'),
+                targets=targets
+            )
+        
         if return_loss:
-            return expert_output, lb_loss
-        return expert_output
+            total_loss = lb_loss + distill_loss
+            return logits, total_loss
+        return logits
+    
+    def enable_distillation(self, teacher_model_path=None):
+        """
+        Enable knowledge distillation and optionally load teacher model
+        """
+        if not self.use_distillation:
+            print("Distillation not initialized. Please set use_distillation=True during initialization.")
+            return
+        
+        if teacher_model_path:
+            self.load_teacher_model(teacher_model_path)
+        
+        print("Knowledge distillation enabled")
+    
+    def disable_distillation(self):
+        """
+        Disable knowledge distillation for inference
+        """
+        self.use_distillation = False
+        print("Knowledge distillation disabled")
+    
+    def load_teacher_model(self, model_path):
+        """
+        Load pre-trained teacher model
+        """
+        if not self.use_distillation:
+            print("Distillation not initialized")
+            return
+        
+        try:
+            checkpoint = torch.load(model_path, map_location=next(self.parameters()).device)
+            self.teacher_model.load_state_dict(checkpoint)
+            print(f"Teacher model loaded from {model_path}")
+        except Exception as e:
+            print(f"Failed to load teacher model: {e}")
+    
+    def distillation_step(self, input_data, targets=None, optimizer=None):
+        """
+        Perform a single distillation training step
+        """
+        if not self.use_distillation:
+            print("Distillation not enabled")
+            return {}
+        
+        return distillation_training_step(
+            student_model=self,
+            teacher_model=self.teacher_model,
+            distillation_module=self.distillation_module,
+            input_data=input_data,
+            targets=targets,
+            optimizer=optimizer
+        )
     
     def save_checkpoint(self, path):
         """
@@ -202,8 +306,15 @@ class PiKVMoE(nn.Module):
         checkpoint = {
             'model_state_dict': self.state_dict(),
             'cache_ptrs': self.cache_ptrs,
-            'kv_caches': [cache.get_all() for cache in self.kv_caches]
+            'kv_caches': [cache.get_all() for cache in self.kv_caches],
+            'use_distillation': self.use_distillation
         }
+        
+        # Save teacher model if distillation is enabled
+        if self.use_distillation:
+            checkpoint['teacher_state_dict'] = self.teacher_model.state_dict()
+            checkpoint['distillation_state_dict'] = self.distillation_module.state_dict()
+        
         torch.save(checkpoint, path)
     
     def load_checkpoint(self, path):
@@ -216,3 +327,10 @@ class PiKVMoE(nn.Module):
         for i, cache_data in enumerate(checkpoint['kv_caches']):
             if cache_data is not None:
                 self.kv_caches[i].set_all(cache_data)
+        
+        # Load distillation components if available
+        if checkpoint.get('use_distillation', False) and self.use_distillation:
+            if 'teacher_state_dict' in checkpoint:
+                self.teacher_model.load_state_dict(checkpoint['teacher_state_dict'])
+            if 'distillation_state_dict' in checkpoint:
+                self.distillation_module.load_state_dict(checkpoint['distillation_state_dict'])
