@@ -324,46 +324,58 @@ class DistributedPiKVCacheWithDistillation:
         if not self.use_distillation or self.teacher_model is None:
             return None
         
-        with torch.no_grad():
-            # Create input tensor for teacher model
-            # Teacher expects [batch_size, seq_len, teacher_hidden_size]
-            batch_size, seq_len = input_ids.shape
-            teacher_input = torch.randn(
-                batch_size, seq_len, self.teacher_hidden_size,
-                device=input_ids.device
-            )
-            
-            # Get teacher outputs - this returns a dict
-            teacher_outputs = self.teacher_model(teacher_input)
-            
-            # Extract logits from the teacher outputs dict
-            if isinstance(teacher_outputs, dict):
-                teacher_logits = teacher_outputs.get('logits')
-                teacher_features = teacher_outputs.get('features', teacher_input)
-                expert_outputs = teacher_outputs.get('expert_outputs')
-                routing_weights = teacher_outputs.get('routing_weights')
-            else:
-                # If teacher returns tensor directly
-                teacher_logits = teacher_outputs
-                teacher_features = teacher_input
-                expert_outputs = None
-                routing_weights = None
-            
-            # Ensure teacher_logits has the correct shape for vocabulary
-            if teacher_logits is not None and teacher_logits.shape[-1] != self.model.config.vocab_size:
-                if not hasattr(self, 'vocab_projection'):
-                    self.vocab_projection = nn.Linear(
-                        teacher_logits.shape[-1], 
-                        self.model.config.vocab_size
-                    ).to(teacher_logits.device)
-                teacher_logits = self.vocab_projection(teacher_logits)
-            
-            return {
-                'logits': teacher_logits,
-                'features': teacher_features,
-                'expert_outputs': expert_outputs,
-                'routing_weights': routing_weights
-            }
+        try:
+            with torch.no_grad():
+                # 使用学生模型的嵌入层来获取教师模型的输入
+                # 这确保了教师和学生使用相同的token表示
+                student_embeddings = self.model.transformer.wte(input_ids)  # [batch_size, seq_len, 768]
+                
+                # 将学生嵌入投影到教师维度
+                if not hasattr(self, 'student_to_teacher_proj'):
+                    self.student_to_teacher_proj = nn.Linear(
+                        self.hidden_size, 
+                        self.teacher_hidden_size
+                    ).to(input_ids.device)
+                
+                teacher_input = self.student_to_teacher_proj(student_embeddings)  # [batch_size, seq_len, 1536]
+                
+                # Get teacher outputs - this returns a dict
+                teacher_outputs = self.teacher_model(teacher_input)
+                
+                # Extract logits from the teacher outputs dict
+                if isinstance(teacher_outputs, dict):
+                    teacher_logits = teacher_outputs.get('logits')
+                    teacher_features = teacher_outputs.get('features', teacher_input)
+                    expert_outputs = teacher_outputs.get('expert_outputs')
+                    routing_weights = teacher_outputs.get('routing_weights')
+                else:
+                    # If teacher returns tensor directly
+                    teacher_logits = teacher_outputs
+                    teacher_features = teacher_input
+                    expert_outputs = None
+                    routing_weights = None
+                
+                # 确保teacher_logits有正确的词汇表维度
+                if teacher_logits is not None:
+                    # 教师输出应该是 [batch_size, seq_len, teacher_hidden_size]
+                    # 我们需要将其投影到词汇表大小
+                    if teacher_logits.shape[-1] != self.model.config.vocab_size:
+                        if not hasattr(self, 'teacher_vocab_projection'):
+                            self.teacher_vocab_projection = nn.Linear(
+                                teacher_logits.shape[-1], 
+                                self.model.config.vocab_size
+                            ).to(teacher_logits.device)
+                        teacher_logits = self.teacher_vocab_projection(teacher_logits)
+                
+                return {
+                    'logits': teacher_logits,
+                    'features': teacher_features,
+                    'expert_outputs': expert_outputs,
+                    'routing_weights': routing_weights
+                }
+        except Exception as e:
+            print(f"Rank {self.rank}: Error in _get_teacher_outputs: {e}")
+            return None
     
     def generate_with_distillation(
         self,
@@ -507,22 +519,43 @@ class DistributedPiKVCacheWithDistillation:
             return {}
         
         try:
+            # input_data should be token IDs [batch_size, seq_len]
             # Get student outputs
             student_outputs = self.model(input_data, return_dict=True)
             
-            # Process through PiKV
-            processed_features = self._process_with_pikv(student_outputs.logits)
+            # Get student embeddings for processing through PiKV
+            student_embeddings = self.model.transformer.wte(input_data)  # [batch_size, seq_len, 768]
             
-            # Get teacher outputs
+            # Process through PiKV
+            processed_features = self._process_with_pikv(student_embeddings)
+            
+            # Get teacher outputs using the same input_data (token IDs)
             teacher_outputs = self._get_teacher_outputs(input_data)
             
             if teacher_outputs is None or teacher_outputs['logits'] is None:
                 return {}
             
+            # Ensure dimensions match for distillation
+            student_logits = student_outputs.logits  # [batch_size, seq_len, vocab_size]
+            teacher_logits = teacher_outputs['logits']  # [batch_size, seq_len, vocab_size]
+            
+            # Ensure both logits have the same shape
+            if student_logits.shape != teacher_logits.shape:
+                print(f"Rank {self.rank}: Logits shape mismatch - Student: {student_logits.shape}, Teacher: {teacher_logits.shape}")
+                # Try to align dimensions
+                if teacher_logits.shape[-1] != student_logits.shape[-1]:
+                    # Project teacher logits to student vocab size
+                    if not hasattr(self, 'teacher_to_student_logits_proj'):
+                        self.teacher_to_student_logits_proj = nn.Linear(
+                            teacher_logits.shape[-1],
+                            student_logits.shape[-1]
+                        ).to(teacher_logits.device)
+                    teacher_logits = self.teacher_to_student_logits_proj(teacher_logits)
+            
             # Compute distillation loss
             distill_loss, distill_loss_dict = self.distillation_module(
-                student_logits=student_outputs.logits,
-                teacher_logits=teacher_outputs['logits'],
+                student_logits=student_logits,
+                teacher_logits=teacher_logits,
                 student_features=processed_features,
                 teacher_features=teacher_outputs['features'],
                 student_expert_outputs=None,  # Could be implemented if needed
