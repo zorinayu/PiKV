@@ -87,7 +87,28 @@ class DistributedPiKVCacheWithDistillation:
         
         # Initialize Distributed PiKV MoE with correct hidden size
         print(f"Rank {self.rank}: Initializing DistributedPiKVMoE...")
+        
+        # SOLUTION: 动态修改DistributedPiKVMoE以支持自定义hidden_size
+        # 这是一个架构级别的修复，解决PiKV设计中的硬编码配置问题
+        
+        # 1. 临时保存原始配置
+        original_hidden_size = config['hidden_size']
+        original_vocab_size = config['vocab_size']
+        
+        # 2. 动态更新配置以匹配实际模型
+        config['hidden_size'] = self.hidden_size
+        config['vocab_size'] = self.model.config.vocab_size
+        
+        print(f"Rank {self.rank}: Temporarily updated config - hidden_size: {config['hidden_size']}, vocab_size: {config['vocab_size']}")
+        
+        # 3. 创建DistributedPiKVMoE（现在会使用正确的配置）
         self.pikv = DistributedPiKVMoE(rank=4, alpha=1.0)
+        
+        # 4. 恢复原始配置（避免影响其他组件）
+        config['hidden_size'] = original_hidden_size
+        config['vocab_size'] = original_vocab_size
+        
+        print(f"Rank {self.rank}: Restored original config - hidden_size: {config['hidden_size']}, vocab_size: {config['vocab_size']}")
         
         # Initialize knowledge distillation if enabled
         if self.use_distillation:
