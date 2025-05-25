@@ -57,29 +57,32 @@ class DistributedPiKVCacheWithDistillation:
         
         print(f"Process started with rank {self.rank}, local_rank {self.local_rank}, world_size {self.world_size}")
         
+        # Set device first before using it
+        self.device = torch.device(f"cuda:{self.local_rank}" if torch.cuda.is_available() else "cpu")
+        
         # Initialize model and tokenizer
         print(f"Rank {self.rank}: Loading model and tokenizer...")
         self.model = AutoModelForCausalLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.max_length = max_length
         
-        # Get model's hidden size
-        self.hidden_size = self.model.config.hidden_size
+        # Set pad token if not exists
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
         
-        # Update global config with model's hidden size
-        config['hidden_size'] = self.hidden_size
-        
-        # Initialize Distributed PiKV MoE with higher LoRA rank
+        # Initialize PiKV MoE
         print(f"Rank {self.rank}: Initializing DistributedPiKVMoE...")
-        self.pikv = DistributedPiKVMoE(rank=8, alpha=1.0)
+        self.hidden_size = self.model.config.hidden_size
+        self.pikv = DistributedPiKVMoE().to(self.device)
         
-        # Knowledge Distillation Setup
+        # Store configuration
+        self.max_length = max_length
         self.use_distillation = use_distillation
-        if use_distillation:
-            self.teacher_hidden_size = teacher_hidden_size if teacher_hidden_size is not None else self.hidden_size * 2
-            self.distillation_temperature = distillation_temperature
-            self.distillation_alpha = distillation_alpha
-            
+        self.teacher_hidden_size = teacher_hidden_size or (self.hidden_size * 2)
+        self.distillation_temperature = distillation_temperature
+        self.distillation_alpha = distillation_alpha
+        
+        # Initialize knowledge distillation if enabled
+        if self.use_distillation:
             print(f"Rank {self.rank}: Initializing knowledge distillation...")
             
             # Create teacher model
@@ -104,15 +107,13 @@ class DistributedPiKVCacheWithDistillation:
             self.distillation_module = None
         
         # Move model, PiKV, and distillation components to device
-        self.device = torch.device(f"cuda:{self.local_rank}")
         print(f"Rank {self.rank}: Moving models to device {self.device}")
         self.model = self.model.to(self.device)
         self.pikv = self.pikv.to(self.device)
         
-        if self.use_distillation and self.teacher_model is not None:
-            self.teacher_model = self.teacher_model.to(self.device)
-            self.distillation_module = self.distillation_module.to(self.device)
-            
+        if (self.use_distillation and self.teacher_model is not None and 
+            self.distillation_module is not None):
+            # Teacher model and distillation module are already moved to device during creation
             # Freeze teacher model parameters
             for param in self.teacher_model.parameters():
                 param.requires_grad = False
