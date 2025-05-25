@@ -791,9 +791,97 @@ for step in range(seq_len):
 PiKV supports the following core modules:
 
 - `ExpertKVCache`: per-expert low-rank sliding cache
-- `Router`: latency-aware top-k expert selection
-- `Compressor`: LoRA + INT8/4 quantization
-- `Streamer`: stateful KV streaming and checkpointing
+- `Router`: Latency-aware token routing on experts
+- `Compressor`: Distillation, Reduction, Distilltion, Quantization
+- `Streamer`: KV streaming generation
+
+### Usage Example
+
+Distillation
+
+```bash
+(pikv) root@dsw-238653-7c7f75647d-r64rb:/mnt/workspace/PiKV# torchrun --nproc_per_node=2 --nnodes=1 --node_rank=0 --master_addr=localhost --master_port=23468 downstream_tasks/llm/next_tok_pred/d_transformers_distillation.py --use_distillation --model gpt2 --max_tokens 5
+W0525 21:45:11.082000 140404444653376 torch/distributed/run.py:757] 
+W0525 21:45:11.082000 140404444653376 torch/distributed/run.py:757] *****************************************
+W0525 21:45:11.082000 140404444653376 torch/distributed/run.py:757] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0525 21:45:11.082000 140404444653376 torch/distributed/run.py:757] *****************************************
+Initializing DistributedPiKVCacheWithDistillation...
+Initializing distributed environment on rank 1, local_rank 1
+Initializing DistributedPiKVCacheWithDistillation...
+Initializing distributed environment on rank 0, local_rank 0
+Successfully initialized distributed environment on rank 1
+Process started with rank 1, local_rank 1, world_size 2
+Rank 1: Loading model and tokenizer...
+Successfully initialized distributed environment on rank 0
+Process started with rank 0, local_rank 0, world_size 2
+Rank 0: Loading model and tokenizer...
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/transformers/tokenization_utils_base.py:1617: FutureWarning: `clean_up_tokenization_spaces` was not set. It will be set to `True` by default. This behavior will be deprecated in transformers v4.45, and will be then set to `False` by default. For more details check this issue: https://github.com/huggingface/transformers/issues/31884
+  warnings.warn(
+Rank 0: Updated config - hidden_size: 768, vocab_size: 50257
+Rank 0: Initializing DistributedPiKVMoE...
+/root/miniconda3/envs/pikv/lib/python3.11/site-packages/transformers/tokenization_utils_base.py:1617: FutureWarning: `clean_up_tokenization_spaces` was not set. It will be set to `True` by default. This behavior will be deprecated in transformers v4.45, and will be then set to `False` by default. For more details check this issue: https://github.com/huggingface/transformers/issues/31884
+  warnings.warn(
+Rank 0: Created custom DistributedPiKVMoE with hidden_size=768
+Rank 0: Initializing knowledge distillation...
+Rank 1: Updated config - hidden_size: 768, vocab_size: 50257
+Rank 1: Initializing DistributedPiKVMoE...
+Rank 1: Created custom DistributedPiKVMoE with hidden_size=768
+Rank 1: Initializing knowledge distillation...
+Rank 0: Knowledge Distillation enabled with teacher hidden size: 1536
+Rank 0: Moving models to device cuda:0
+Rank 1: Knowledge Distillation enabled with teacher hidden size: 1536
+Rank 1: Moving models to device cuda:1
+Rank 0: Initialization complete
+
+Prompt: The future of artificial intelligence is
+Generating token 1/5
+Rank 1: Initialization complete
+Warning: Distillation failed at token 0: mat1 and mat2 shapes cannot be multiplied (6x50257 and 768x1536)
+Generating token 2/5
+Warning: Distillation failed at token 1: mat1 and mat2 shapes cannot be multiplied (7x50257 and 768x1536)
+Generating token 3/5
+Warning: Distillation failed at token 2: mat1 and mat2 shapes cannot be multiplied (8x50257 and 768x1536)
+Generating token 4/5
+Warning: Distillation failed at token 3: mat1 and mat2 shapes cannot be multiplied (9x50257 and 768x1536)
+Generating token 5/5
+Warning: Distillation failed at token 4: mat1 and mat2 shapes cannot be multiplied (10x50257 and 768x1536)
+Generated: The future of artificial intelligence is at stake.
+
+
+
+Prompt: Knowledge distillation helps models learn by
+Generating token 1/5
+Warning: Distillation failed at token 0: mat1 and mat2 shapes cannot be multiplied (8x50257 and 768x1536)
+Generating token 2/5
+Warning: Distillation failed at token 1: mat1 and mat2 shapes cannot be multiplied (9x50257 and 768x1536)
+Generating token 3/5
+Warning: Distillation failed at token 2: mat1 and mat2 shapes cannot be multiplied (10x50257 and 768x1536)
+Generating token 4/5
+Warning: Distillation failed at token 3: mat1 and mat2 shapes cannot be multiplied (11x50257 and 768x1536)
+Generating token 5/5
+Warning: Distillation failed at token 4: mat1 and mat2 shapes cannot be multiplied (12x50257 and 768x1536)
+Generated: Knowledge distillation helps models learn by following the rules of physics
+
+Prompt: Distributed training enables
+Generating token 1/5
+Warning: Distillation failed at token 0: mat1 and mat2 shapes cannot be multiplied (4x50257 and 768x1536)
+Generating token 2/5
+Warning: Distillation failed at token 1: mat1 and mat2 shapes cannot be multiplied (5x50257 and 768x1536)
+Generating token 3/5
+Warning: Distillation failed at token 2: mat1 and mat2 shapes cannot be multiplied (6x50257 and 768x1536)
+Generating token 4/5
+Warning: Distillation failed at token 3: mat1 and mat2 shapes cannot be multiplied (7x50257 and 768x1536)
+Generating token 5/5
+Warning: Distillation failed at token 4: mat1 and mat2 shapes cannot be multiplied (8x50257 and 768x1536)
+Generated: Distributed training enables you to optimize your training
+
+Demonstrating distillation training step...
+Distributed environment cleaned up
+Rank 0: Error in distillation_training_step: mat1 and mat2 shapes cannot be multiplied (20x768 and 50257x1536)
+Distillation training step completed:
+Distributed environment cleaned up
+```
+
 
 ## Citation
 
