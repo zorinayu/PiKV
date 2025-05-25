@@ -111,9 +111,11 @@ class DistributedPiKVCacheWithDistillation:
         self.model = self.model.to(self.device)
         self.pikv = self.pikv.to(self.device)
         
-        if (self.use_distillation and self.teacher_model is not None and 
-            self.distillation_module is not None):
-            # Teacher model and distillation module are already moved to device during creation
+        if self.use_distillation and self.teacher_model is not None and self.distillation_module is not None:
+            # Move teacher model and distillation module to device
+            self.teacher_model = self.teacher_model.to(self.device)
+            self.distillation_module = self.distillation_module.to(self.device)
+            
             # Freeze teacher model parameters
             for param in self.teacher_model.parameters():
                 param.requires_grad = False
