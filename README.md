@@ -8,6 +8,53 @@ PiKV (Parallel Distributed Key-Value Cache Design with Routing) is a serving fra
 - Compression (PiKVCompression) - Reference to LoRA/LoRA+, PyramidKV/FastV, Distillation
 - Streaming/Scheduling (PiKV Attention) - Reference to Quest and StreamingLLM
 
+## Method Summary
+
+### 🔀 Routing Methods
+
+| Method | Type | Description | Key Features | Implementation |
+|--------|------|-------------|--------------|----------------|
+| **BaseRouter** | Foundation | Base routing class with capacity management | Load balancing, expert masking | `core/single/pikv_routing.py` |
+| **TopKBalancedRouter** | Balanced | Top-K routing with load balancing | Entropy/variance balancing, capacity control | `core/single/pikv_routing.py` |
+| **AdaptiveRouter** | Adaptive | Importance-aware adaptive routing | Dynamic expert selection, importance scoring | `core/single/pikv_routing.py` |
+| **PiKVRouter** | Advanced | Cache-aware routing with usage tracking | KV cache integration, usage optimization | `core/single/pikv_routing.py` |
+| **ExpertRouter** | Basic | Simple expert routing with temperature control | Top-K selection, temperature scaling | `core/single/routing_strategy.py` |
+| **LoadBalancingRouter** | Balanced | Router with explicit load balancing | Load balance loss, expert utilization | `core/single/routing_strategy.py` |
+| **ImportanceAwareRouter** | Importance | Routing based on token importance | Importance prediction, adaptive selection | `core/single/routing_strategy.py` |
+
+### 🗜️ Compression Methods
+
+| Method | Type | Description | Key Features | Implementation |
+|--------|------|-------------|--------------|----------------|
+| **PyramidCompressor** | Hierarchical | Pyramid-style hierarchical compression | Multi-level compression, importance-based | `core/single/pikv_compression.py` |
+| **SVDCompressor** | Low-rank | SVD-based low-rank approximation | Adaptive rank, energy preservation | `core/single/pikv_compression.py` |
+| **QuantizedCompressor** | Quantization | Dynamic quantization compression | 4/8-bit quantization, group-wise | `core/single/pikv_compression.py` |
+| **PiKVCompressor** | Adaptive | Multi-strategy adaptive compression | Strategy selection, importance-aware | `core/single/pikv_compression.py` |
+| **PyramidCompression** | Basic | Basic pyramid compression | Compression layers, importance weighting | `core/single/kv_cache_compression.py` |
+| **DynamicCompression** | Dynamic | Dynamic compression ratio prediction | Adaptive ratios, feature-based | `core/single/kv_cache_compression.py` |
+| **LoRA Integration** | Parameter-efficient | LoRA-based compression | Low-rank adaptation, fine-tuning | `core/single/lora.py` |
+
+### ⏰ Scheduling Methods
+
+| Method | Type | Description | Key Features | Implementation |
+|--------|------|-------------|--------------|----------------|
+| **H2OScheduler** | Heavy-Hitter | H2O (Heavy-Hitter Oracle) scheduling | Attention-based, heavy hitter detection | `core/single/cache_scheduling.py` |
+| **StreamingLLMScheduler** | Streaming | StreamingLLM-style scheduling | Initial tokens + sliding window | `core/single/cache_scheduling.py` |
+| **QUESTScheduler** | Quality-aware | QUEST quality-aware scheduling | Reconstruction error, utility scoring | `core/single/cache_scheduling.py` |
+| **FlexGenScheduler** | Hierarchical | FlexGen hierarchical memory management | GPU/CPU/Disk tiers, access patterns | `core/single/cache_scheduling.py` |
+| **LRUScheduler** | Traditional | Least Recently Used scheduling | Access time tracking, simple eviction | `core/single/cache_scheduling.py` |
+| **LRUPlusScheduler** | Enhanced | Enhanced LRU with frequency and importance | Multi-factor scoring, weighted eviction | `core/single/cache_scheduling.py` |
+| **CacheSchedulingManager** | Unified | Unified scheduling management | Policy switching, statistics tracking | `core/single/cache_scheduling.py` |
+
+### 🔧 Additional Components
+
+| Component | Type | Description | Key Features | Implementation |
+|-----------|------|-------------|--------------|----------------|
+| **PiKVAttention** | Attention | KV cache-integrated attention | Rotary embeddings, streaming support | `core/single/pikv_attention.py` |
+| **PiKVDistillation** | Knowledge Transfer | Teacher-student distillation | Multi-level distillation, adaptive weighting | `core/single/distillation.py` |
+| **PiKVKernels** | CUDA Acceleration | Custom CUDA kernels | Routing, compression, eviction kernels | `core/single/pikv_kernels.py` |
+| **ExternalMemoryCache** | Memory Extension | External memory management | Overflow handling, memory expansion | `core/single/shared.py` |
+
 ## Installation
 
 ```bash

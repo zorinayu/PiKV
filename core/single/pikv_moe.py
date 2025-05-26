@@ -7,16 +7,18 @@ from .routing_strategy import AdaptiveRouter
 from .lora import LoRALayer, LoRAExpert, LoRAKVCache
 from .distillation import PiKVDistillation, create_teacher_model, distillation_training_step
 from .shared import ExternalMemoryCache
+from .cache_scheduling import CacheSchedulingManager, SchedulingPolicy
 import math
 
 class KVCache(nn.Module):
     """
     KV Cache implementation with compression and streaming support.
     """
-    def __init__(self, size):
+    def __init__(self, size, use_scheduling=False, scheduling_policy=SchedulingPolicy.NONE):
         super(KVCache, self).__init__()
         self.size = size
         self.hidden_size = config['hidden_size']
+        self.use_scheduling = use_scheduling
         
         # Initialize tensors
         self.register_buffer('keys', torch.zeros(size, self.hidden_size))
@@ -37,6 +39,16 @@ class KVCache(nn.Module):
             rank=4,
             alpha=1.0
         )
+        
+        # Initialize cache scheduling manager if enabled
+        if self.use_scheduling:
+            self.scheduling_manager = CacheSchedulingManager(
+                cache_size=size,
+                hidden_size=self.hidden_size,
+                policy=scheduling_policy
+            )
+        else:
+            self.scheduling_manager = None
     
     def update(self, idx, key, value, importance):
         # Reshape input if needed
@@ -47,32 +59,90 @@ class KVCache(nn.Module):
             key = key.mean(dim=0)  # [hidden_size]
             value = value.mean(dim=0)  # [hidden_size]
         
-        # Update cache at the specified index
-        self.keys[idx] = key
-        self.values[idx] = value
-        self.importance[idx] = importance.mean().item()
+        # Use scheduling manager if enabled
+        if self.use_scheduling and self.scheduling_manager is not None:
+            # Prepare data for scheduling manager
+            keys_batch = key.unsqueeze(0).unsqueeze(0)  # [1, 1, hidden_size]
+            values_batch = value.unsqueeze(0).unsqueeze(0)  # [1, 1, hidden_size]
+            
+            # Update cache through scheduling manager
+            metadata = {
+                'importance': importance.unsqueeze(0) if importance.dim() == 0 else importance,
+                'timestamp': torch.tensor([idx], device=key.device)
+            }
+            self.scheduling_manager.update_cache(keys_batch, values_batch, metadata)
+        else:
+            # Traditional cache update
+            self.keys[idx] = key
+            self.values[idx] = value
+            self.importance[idx] = importance.mean().item()
     
     def get_all(self):
-        # Apply compression to cached values
-        compressed_keys, compressed_values = self.compressor(
-            self.keys.unsqueeze(0),
-            self.values.unsqueeze(0),
-            self.importance.unsqueeze(0)
-        )
-        
-        # Apply LoRA to compressed values
-        compressed_values = compressed_values + self.value_lora(compressed_values)
-        
-        return compressed_values.squeeze(0).mean(dim=0)  # Return average of compressed values
+        if self.use_scheduling and self.scheduling_manager is not None:
+            # Get cached values from scheduling manager
+            current_size = self.scheduling_manager.cache_size_current.item()
+            if current_size > 0:
+                cached_keys = self.scheduling_manager.cache_keys[:current_size]
+                cached_values = self.scheduling_manager.cache_values[:current_size]
+                
+                # Apply compression to cached values
+                compressed_keys, compressed_values = self.compressor(
+                    cached_keys.unsqueeze(0),
+                    cached_values.unsqueeze(0),
+                    torch.ones(1, current_size, device=cached_keys.device)
+                )
+                
+                # Apply LoRA to compressed values
+                compressed_values = compressed_values + self.value_lora(compressed_values)
+                
+                return compressed_values.squeeze(0).mean(dim=0)  # Return average of compressed values
+            else:
+                return torch.zeros(self.hidden_size, device=self.keys.device)
+        else:
+            # Traditional cache retrieval
+            # Apply compression to cached values
+            compressed_keys, compressed_values = self.compressor(
+                self.keys.unsqueeze(0),
+                self.values.unsqueeze(0),
+                self.importance.unsqueeze(0)
+            )
+            
+            # Apply LoRA to compressed values
+            compressed_values = compressed_values + self.value_lora(compressed_values)
+            
+            return compressed_values.squeeze(0).mean(dim=0)  # Return average of compressed values
     
     def set_all(self, data):
         if data is not None:
-            self.values.copy_(data.unsqueeze(0).expand(self.size, -1))
+            if self.use_scheduling and self.scheduling_manager is not None:
+                # Reset scheduling manager cache
+                self.scheduling_manager.reset_cache()
+            else:
+                self.values.copy_(data.unsqueeze(0).expand(self.size, -1))
+    
+    def get_cache_stats(self):
+        """获取缓存统计信息"""
+        if self.use_scheduling and self.scheduling_manager is not None:
+            return self.scheduling_manager.get_cache_stats()
+        else:
+            return {
+                'cache_size': self.size,
+                'cache_utilization': 1.0,
+                'policy': 'none'
+            }
+    
+    def change_scheduling_policy(self, new_policy: SchedulingPolicy):
+        """更改调度策略"""
+        if self.use_scheduling and self.scheduling_manager is not None:
+            self.scheduling_manager.change_policy(new_policy)
 
 class PiKVMoE(nn.Module):
-    def __init__(self, rank=4, alpha=1.0, use_distillation=False, teacher_hidden_size=None):
+    def __init__(self, rank=4, alpha=1.0, use_distillation=False, teacher_hidden_size=None,
+                 use_cache_scheduling=False, cache_scheduling_policy=SchedulingPolicy.NONE):
         super(PiKVMoE, self).__init__()
         self.use_distillation = use_distillation
+        self.use_cache_scheduling = use_cache_scheduling
+        self.cache_scheduling_policy = cache_scheduling_policy
         
         # Add embedding layer to handle token IDs
         self.embedding = nn.Embedding(config['vocab_size'], config['hidden_size'])
@@ -99,9 +169,11 @@ class PiKVMoE(nn.Module):
         # Cache size allocation for each layer
         self.cache_sizes = self.pyramidal_cache_allocation()
         
-        # Initialize KV caches for each expert
+        # Initialize KV caches for each expert with optional scheduling
         self.kv_caches = nn.ModuleList([
-            KVCache(size) for size in self.cache_sizes
+            KVCache(size, use_scheduling=use_cache_scheduling, 
+                   scheduling_policy=cache_scheduling_policy) 
+            for size in self.cache_sizes
         ])
         
         # Cache pointers for each expert
@@ -138,6 +210,10 @@ class PiKVMoE(nn.Module):
                 param.requires_grad = False
             
             print(f"Knowledge Distillation enabled with teacher hidden size: {self.teacher_hidden_size}")
+        
+        # Print cache scheduling info
+        if self.use_cache_scheduling:
+            print(f"Cache Scheduling enabled with policy: {cache_scheduling_policy.value}")
 
     def pyramidal_cache_allocation(self):
         """
@@ -180,8 +256,9 @@ class PiKVMoE(nn.Module):
         # Update cache with new key-value pair
         cache.update(ptr, key, value, importance)
         
-        # Update pointer
-        self.cache_ptrs[expert_idx] = (ptr + 1) % cache.size
+        # Update pointer (only for non-scheduling caches)
+        if not self.use_cache_scheduling:
+            self.cache_ptrs[expert_idx] = (ptr + 1) % cache.size
     
     def forward(self, x, query=None, return_loss=False, targets=None, use_teacher=False):
         # Handle both token IDs (2D) and embeddings (3D) as input
@@ -258,6 +335,72 @@ class PiKVMoE(nn.Module):
             return logits, total_loss
         return logits
     
+    def enable_cache_scheduling(self, policy: SchedulingPolicy = SchedulingPolicy.LRU):
+        """启用缓存调度"""
+        self.use_cache_scheduling = True
+        self.cache_scheduling_policy = policy
+        
+        # 为所有缓存启用调度
+        for cache in self.kv_caches:
+            # Use setattr to avoid PyTorch module parameter checking
+            setattr(cache, 'use_scheduling', True)
+            if cache.scheduling_manager is None:
+                cache.scheduling_manager = CacheSchedulingManager(
+                    cache_size=cache.size,
+                    hidden_size=cache.hidden_size,
+                    policy=policy
+                )
+            else:
+                cache.scheduling_manager.change_policy(policy)
+        
+        print(f"Cache scheduling enabled with policy: {policy.value}")
+    
+    def disable_cache_scheduling(self):
+        """禁用缓存调度"""
+        self.use_cache_scheduling = False
+        
+        # 为所有缓存禁用调度
+        for cache in self.kv_caches:
+            # Use setattr to avoid PyTorch module parameter checking
+            setattr(cache, 'use_scheduling', False)
+            if cache.scheduling_manager is not None:
+                cache.scheduling_manager.reset_cache()
+        
+        print("Cache scheduling disabled")
+    
+    def change_cache_scheduling_policy(self, new_policy: SchedulingPolicy):
+        """更改缓存调度策略"""
+        if self.use_cache_scheduling:
+            self.cache_scheduling_policy = new_policy
+            for cache in self.kv_caches:
+                cache.change_scheduling_policy(new_policy)
+            print(f"Cache scheduling policy changed to: {new_policy.value}")
+        else:
+            print("Cache scheduling is not enabled. Use enable_cache_scheduling() first.")
+    
+    def get_cache_stats(self):
+        """获取所有缓存的统计信息"""
+        stats = {}
+        for i, cache in enumerate(self.kv_caches):
+            stats[f'expert_{i}'] = cache.get_cache_stats()
+        return stats
+    
+    def print_cache_stats(self):
+        """打印缓存统计信息"""
+        if self.use_cache_scheduling:
+            print("\n===== Cache Scheduling Statistics =====")
+            stats = self.get_cache_stats()
+            for expert_name, expert_stats in stats.items():
+                print(f"\n{expert_name.upper()}:")
+                for stat_name, value in expert_stats.items():
+                    if isinstance(value, float):
+                        print(f"  {stat_name}: {value:.4f}")
+                    else:
+                        print(f"  {stat_name}: {value}")
+            print("\n======================================")
+        else:
+            print("Cache scheduling is not enabled.")
+
     def enable_distillation(self, teacher_model_path=None):
         """
         Enable knowledge distillation and optionally load teacher model
@@ -318,13 +461,19 @@ class PiKVMoE(nn.Module):
             'model_state_dict': self.state_dict(),
             'cache_ptrs': self.cache_ptrs,
             'kv_caches': [cache.get_all() for cache in self.kv_caches],
-            'use_distillation': self.use_distillation
+            'use_distillation': self.use_distillation,
+            'use_cache_scheduling': self.use_cache_scheduling,
+            'cache_scheduling_policy': self.cache_scheduling_policy.value if self.use_cache_scheduling else None
         }
         
         # Save teacher model if distillation is enabled
         if self.use_distillation:
             checkpoint['teacher_state_dict'] = self.teacher_model.state_dict()
             checkpoint['distillation_state_dict'] = self.distillation_module.state_dict()
+        
+        # Save cache scheduling stats if enabled
+        if self.use_cache_scheduling:
+            checkpoint['cache_stats'] = self.get_cache_stats()
         
         torch.save(checkpoint, path)
     
@@ -345,3 +494,12 @@ class PiKVMoE(nn.Module):
                 self.teacher_model.load_state_dict(checkpoint['teacher_state_dict'])
             if 'distillation_state_dict' in checkpoint:
                 self.distillation_module.load_state_dict(checkpoint['distillation_state_dict'])
+        
+        # Load cache scheduling settings if available
+        if checkpoint.get('use_cache_scheduling', False):
+            policy_name = checkpoint.get('cache_scheduling_policy', 'none')
+            try:
+                policy = SchedulingPolicy(policy_name)
+                self.enable_cache_scheduling(policy)
+            except ValueError:
+                print(f"Unknown scheduling policy in checkpoint: {policy_name}")
