@@ -546,4 +546,311 @@ class PiKVRouter(AdaptiveRouter):
         history_correction = torch.sum(self.cache_usage_history * expert_usage_norm)
         aux_loss = aux_loss + 0.05 * history_correction
         
-        return dispatch_tensor, combine_tensor, router_probs, aux_loss, importance 
+        return dispatch_tensor, combine_tensor, router_probs, aux_loss, importance
+
+class EPLBRouter(BaseRouter):
+    """
+    Expert-level Load Balancing (EPLB) Router
+    基于DeepSeek EPLB论文的实现，提供更精细的专家级负载平衡
+    
+    Reference: https://github.com/deepseek-ai/EPLB
+    """
+    def __init__(
+        self, 
+        hidden_size: int, 
+        num_experts: int, 
+        top_k: int = 2,
+        capacity_factor: float = 1.5,
+        expert_backend: str = "fairscale",
+        balance_coefficient: float = 0.01,
+        temperature: float = 1.0,
+        use_auxiliary_loss: bool = True,
+        use_z_loss: bool = True,
+        z_loss_coefficient: float = 1e-3
+    ):
+        super(EPLBRouter, self).__init__(
+            hidden_size, num_experts, top_k, capacity_factor, expert_backend
+        )
+        self.balance_coefficient = balance_coefficient
+        self.temperature = temperature
+        self.use_auxiliary_loss = use_auxiliary_loss
+        self.use_z_loss = use_z_loss
+        self.z_loss_coefficient = z_loss_coefficient
+        
+        # EPLB特有的组件
+        self.expert_load_tracker = torch.zeros(num_experts)
+        self.global_step = 0
+        
+        # 改进的路由网络，使用更深的网络
+        self.router = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size * 2),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_size * 2, hidden_size),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_size, num_experts)
+        )
+        
+        # 专家负载平衡的动态权重
+        self.register_buffer('expert_weights', torch.ones(num_experts))
+        
+    def _compute_load_balancing_loss(self, router_probs: torch.Tensor, expert_indices: torch.Tensor) -> torch.Tensor:
+        """
+        计算EPLB的负载平衡损失
+        """
+        batch_size, seq_len, _ = router_probs.shape
+        
+        # 计算每个专家的使用频率
+        expert_usage = torch.zeros(self.num_experts, device=router_probs.device)
+        for i in range(self.num_experts):
+            expert_usage[i] = (expert_indices == i).float().sum()
+        
+        # 归一化使用频率
+        expert_usage = expert_usage / (batch_size * seq_len * self.top_k)
+        
+        # 计算理想的均匀分布
+        uniform_prob = 1.0 / self.num_experts
+        
+        # 使用KL散度作为负载平衡损失
+        kl_loss = F.kl_div(
+            torch.log(expert_usage + 1e-8),
+            torch.full_like(expert_usage, uniform_prob),
+            reduction='sum'
+        )
+        
+        return kl_loss
+    
+    def _compute_z_loss(self, router_logits: torch.Tensor) -> torch.Tensor:
+        """
+        计算Z损失，防止路由器输出过大的logits
+        """
+        return torch.mean(torch.logsumexp(router_logits, dim=-1) ** 2)
+    
+    def _update_expert_weights(self, expert_usage: torch.Tensor):
+        """
+        动态更新专家权重以实现更好的负载平衡
+        """
+        # 计算专家使用率的倒数作为权重
+        avg_usage = expert_usage.mean()
+        self.expert_weights = avg_usage / (expert_usage + 1e-8)
+        
+        # 平滑更新
+        momentum = 0.9
+        self.expert_weights = momentum * self.expert_weights + (1 - momentum) * self.expert_weights
+    
+    def forward(
+        self, 
+        hidden_states: torch.Tensor,
+        expert_mask: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+        batch_size, seq_len, hidden_size = hidden_states.shape
+        
+        # 计算路由logits
+        router_logits = self.router(hidden_states)  # [batch_size, seq_len, num_experts]
+        
+        # 应用温度缩放
+        router_logits = router_logits / self.temperature
+        
+        # 应用专家权重进行负载平衡
+        router_logits = router_logits * self.expert_weights.unsqueeze(0).unsqueeze(0)
+        
+        # 应用专家掩码
+        if expert_mask is not None:
+            router_logits = router_logits + (1 - expert_mask.unsqueeze(0).unsqueeze(0)) * -1e9
+        
+        # 计算路由概率
+        router_probs = F.softmax(router_logits, dim=-1)
+        
+        # 获取top_k专家
+        top_k_probs, top_k_indices = torch.topk(router_probs, k=self.top_k, dim=-1)
+        
+        # 重新归一化
+        top_k_probs = top_k_probs / top_k_probs.sum(dim=-1, keepdim=True)
+        
+        # 计算容量
+        capacity = self._compute_capacity(batch_size, seq_len)
+        
+        # 创建调度和组合张量（使用基类的逻辑）
+        dispatch_tensor = torch.zeros(
+            batch_size * seq_len, self.num_experts, capacity,
+            device=hidden_states.device
+        )
+        combine_tensor = torch.zeros(
+            batch_size * seq_len, self.num_experts, capacity,
+            device=hidden_states.device
+        )
+        
+        # 专家计数器
+        expert_count = torch.zeros(self.num_experts, device=hidden_states.device, dtype=torch.int32)
+        position_in_batch = torch.arange(batch_size * seq_len, device=hidden_states.device)
+        
+        # 压平索引和概率
+        top_k_indices_flat = top_k_indices.view(-1, self.top_k)
+        top_k_probs_flat = top_k_probs.view(-1, self.top_k)
+        
+        # 填充调度和组合张量
+        for i in range(self.top_k):
+            expert_idx = top_k_indices_flat[:, i]
+            prob = top_k_probs_flat[:, i]
+            
+            # 检查容量
+            mask_capacity = expert_count[expert_idx] < capacity
+            expert_idx_with_capacity = expert_idx[mask_capacity]
+            position_with_capacity = position_in_batch[mask_capacity]
+            prob_with_capacity = prob[mask_capacity]
+            
+            # 更新计数和张量
+            token_positions = expert_count[expert_idx_with_capacity]
+            expert_count[expert_idx_with_capacity] += 1
+            
+            dispatch_tensor[position_with_capacity, expert_idx_with_capacity, token_positions] = 1.0
+            combine_tensor[position_with_capacity, expert_idx_with_capacity, token_positions] = prob_with_capacity
+        
+        # 重塑张量
+        dispatch_tensor = dispatch_tensor.view(batch_size, seq_len, self.num_experts, capacity)
+        combine_tensor = combine_tensor.view(batch_size, seq_len, self.num_experts, capacity)
+        
+        # 计算损失
+        aux_loss = 0.0
+        
+        if self.use_auxiliary_loss:
+            # 负载平衡损失
+            balance_loss = self._compute_load_balancing_loss(router_probs, top_k_indices)
+            aux_loss += self.balance_coefficient * balance_loss
+        
+        if self.use_z_loss:
+            # Z损失
+            z_loss = self._compute_z_loss(router_logits)
+            aux_loss += self.z_loss_coefficient * z_loss
+        
+        # 更新专家使用统计
+        expert_usage = torch.zeros(self.num_experts, device=hidden_states.device)
+        for i in range(self.num_experts):
+            expert_usage[i] = (top_k_indices == i).float().sum()
+        
+        self._update_expert_weights(expert_usage)
+        self.global_step += 1
+        
+        return dispatch_tensor, combine_tensor, router_probs, aux_loss
+
+class HierarchicalRouter(BaseRouter):
+    """
+    分层路由器 - 先选择专家组，再选择组内专家
+    适用于大规模专家系统
+    """
+    def __init__(
+        self, 
+        hidden_size: int, 
+        num_experts: int, 
+        top_k: int = 2,
+        capacity_factor: float = 1.5,
+        expert_backend: str = "fairscale",
+        num_groups: int = 4,
+        group_top_k: int = 1
+    ):
+        super(HierarchicalRouter, self).__init__(
+            hidden_size, num_experts, top_k, capacity_factor, expert_backend
+        )
+        
+        self.num_groups = num_groups
+        self.group_top_k = group_top_k
+        self.experts_per_group = num_experts // num_groups
+        
+        # 组级路由器
+        self.group_router = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, num_groups)
+        )
+        
+        # 专家级路由器（每组一个）
+        self.expert_routers = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(hidden_size, hidden_size // 2),
+                nn.ReLU(),
+                nn.Linear(hidden_size // 2, self.experts_per_group)
+            ) for _ in range(num_groups)
+        ])
+    
+    def forward(
+        self, 
+        hidden_states: torch.Tensor,
+        expert_mask: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+        batch_size, seq_len, hidden_size = hidden_states.shape
+        
+        # 第一阶段：选择专家组
+        group_logits = self.group_router(hidden_states)  # [batch_size, seq_len, num_groups]
+        group_probs = F.softmax(group_logits, dim=-1)
+        
+        # 选择top_k组
+        top_k_group_probs, top_k_group_indices = torch.topk(
+            group_probs, k=min(self.group_top_k, self.num_groups), dim=-1
+        )
+        
+        # 第二阶段：在选中的组内选择专家
+        all_expert_probs = []
+        all_expert_indices = []
+        
+        for group_idx in range(self.num_groups):
+            # 计算该组的专家logits
+            expert_logits = self.expert_routers[group_idx](hidden_states)
+            expert_probs = F.softmax(expert_logits, dim=-1)
+            
+            # 转换为全局专家索引
+            global_expert_indices = torch.arange(
+                group_idx * self.experts_per_group,
+                (group_idx + 1) * self.experts_per_group,
+                device=hidden_states.device
+            )
+            
+            all_expert_probs.append(expert_probs)
+            all_expert_indices.append(global_expert_indices)
+        
+        # 组合所有专家的概率
+        router_probs = torch.zeros(batch_size, seq_len, self.num_experts, device=hidden_states.device)
+        
+        for group_idx in range(self.num_groups):
+            group_weight = group_probs[:, :, group_idx:group_idx+1]  # [batch_size, seq_len, 1]
+            expert_probs = all_expert_probs[group_idx]  # [batch_size, seq_len, experts_per_group]
+            
+            start_idx = group_idx * self.experts_per_group
+            end_idx = (group_idx + 1) * self.experts_per_group
+            
+            router_probs[:, :, start_idx:end_idx] = group_weight * expert_probs
+        
+        # 应用专家掩码
+        if expert_mask is not None:
+            router_probs = router_probs * expert_mask.unsqueeze(0).unsqueeze(0)
+        
+        # 获取最终的top_k专家
+        top_k_probs, top_k_indices = torch.topk(router_probs, k=self.top_k, dim=-1)
+        top_k_probs = top_k_probs / top_k_probs.sum(dim=-1, keepdim=True)
+        
+        # 创建调度和组合张量（使用基类逻辑）
+        capacity = self._compute_capacity(batch_size, seq_len)
+        
+        dispatch_tensor = torch.zeros(
+            batch_size, seq_len, self.num_experts, capacity,
+            device=hidden_states.device
+        )
+        combine_tensor = torch.zeros(
+            batch_size, seq_len, self.num_experts, capacity,
+            device=hidden_states.device
+        )
+        
+        # 简化的分配逻辑
+        for i in range(batch_size):
+            for j in range(seq_len):
+                for k in range(self.top_k):
+                    expert_idx = top_k_indices[i, j, k].item()
+                    prob = top_k_probs[i, j, k].item()
+                    dispatch_tensor[i, j, expert_idx, 0] = 1.0
+                    combine_tensor[i, j, expert_idx, 0] = prob
+        
+        # 计算辅助损失
+        router_prob_per_expert = router_probs.mean(dim=[0, 1])
+        aux_loss = torch.sum(router_prob_per_expert * torch.log(router_prob_per_expert * self.num_experts + 1e-9))
+        
+        return dispatch_tensor, combine_tensor, router_probs, aux_loss 

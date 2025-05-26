@@ -16,37 +16,45 @@ PiKV (Parallel Distributed Key-Value Cache Design with Routing) is a serving fra
 |--------|------|-------------|--------------|----------------|
 | **BaseRouter** | Foundation | Base routing class with capacity management | Load balancing, expert masking | `core/single/pikv_routing.py` |
 | **TopKBalancedRouter** | Balanced | Top-K routing with load balancing | Entropy/variance balancing, capacity control | `core/single/pikv_routing.py` |
-| **AdaptiveRouter** | Adaptive | Importance-aware adaptive routing | Dynamic expert selection, importance scoring | `core/single/pikv_routing.py` |
-| **PiKVRouter** | Advanced | Cache-aware routing with usage tracking | KV cache integration, usage optimization | `core/single/pikv_routing.py` |
-| **ExpertRouter** | Basic | Simple expert routing with temperature control | Top-K selection, temperature scaling | `core/single/routing_strategy.py` |
-| **LoadBalancingRouter** | Balanced | Router with explicit load balancing | Load balance loss, expert utilization | `core/single/routing_strategy.py` |
-| **ImportanceAwareRouter** | Importance | Routing based on token importance | Importance prediction, adaptive selection | `core/single/routing_strategy.py` |
+| **AdaptiveRouter** | Adaptive | Dynamic routing with importance scoring | Importance threshold, adaptive capacity | `core/single/pikv_routing.py` |
+| **PiKVRouter** | Cache-Aware | KV cache-integrated routing | Cache usage tracking, memory-aware routing | `core/single/pikv_routing.py` |
+| **EPLBRouter** | Expert-Level | Expert-level load balancing (DeepSeek) | Dynamic expert weights, Z-loss, temperature scaling | `core/single/pikv_routing.py` |
+| **HierarchicalRouter** | Hierarchical | Two-stage routing (group → expert) | Group selection, scalable for large expert systems | `core/single/pikv_routing.py` |
 
 ### 🗜️ Compression Methods
 
 | Method | Type | Description | Key Features | Implementation |
 |--------|------|-------------|--------------|----------------|
-| **PyramidCompressor** | Hierarchical | Pyramid-style hierarchical compression | Multi-level compression, importance-based | `core/single/pikv_compression.py` |
-| **SVDCompressor** | Low-rank | SVD-based low-rank approximation | Adaptive rank, energy preservation | `core/single/pikv_compression.py` |
-| **QuantizedCompressor** | Quantization | Dynamic quantization compression | 4/8-bit quantization, group-wise | `core/single/pikv_compression.py` |
-| **PiKVCompressor** | Adaptive | Multi-strategy adaptive compression | Strategy selection, importance-aware | `core/single/pikv_compression.py` |
-| **PyramidCompression** | Basic | Basic pyramid compression | Compression layers, importance weighting | `core/single/kv_cache_compression.py` |
-| **DynamicCompression** | Dynamic | Dynamic compression ratio prediction | Adaptive ratios, feature-based | `core/single/kv_cache_compression.py` |
-| **LoRA Integration** | Parameter-efficient | LoRA-based compression | Low-rank adaptation, fine-tuning | `core/single/lora.py` |
+| **PyramidCompression** | Hierarchical | Multi-level compression with pyramid structure | Layer-wise compression, adaptive ratios | `core/single/pikv_compression.py` |
+| **LoRACompression** | Low-Rank | Low-rank adaptation for compression | Rank decomposition, efficient fine-tuning | `core/single/lora.py` |
+| **QuantizationCompression** | Quantization | Bit-width reduction compression | INT8/FP16 quantization, calibration | `core/single/pikv_compression.py` |
+| **AdaptiveCompression** | Adaptive | Dynamic compression based on importance | Importance scoring, adaptive thresholds | `core/single/pikv_compression.py` |
+| **H2O** | Eviction | Heavy-Hitter Oracle eviction | Attention weight tracking, recency bias | `core/single/cache_scheduling.py` |
+| **StreamingLLM** | Streaming | Streaming-aware cache management | Initial token preservation, sliding window | `core/single/cache_scheduling.py` |
+| **QUEST** | Quality-Aware | Quality-aware eviction strategy | Reconstruction error, utility scoring | `core/single/cache_scheduling.py` |
 
-### ⏰ Scheduling Methods
+### 📅 Scheduling Methods
 
 | Method | Type | Description | Key Features | Implementation |
 |--------|------|-------------|--------------|----------------|
-| **H2OScheduler** | Heavy-Hitter | H2O (Heavy-Hitter Oracle) scheduling | Attention-based, heavy hitter detection | `core/single/cache_scheduling.py` |
-| **StreamingLLMScheduler** | Streaming | StreamingLLM-style scheduling | Initial tokens + sliding window | `core/single/cache_scheduling.py` |
-| **QUESTScheduler** | Quality-aware | QUEST quality-aware scheduling | Reconstruction error, utility scoring | `core/single/cache_scheduling.py` |
-| **FlexGenScheduler** | Hierarchical | FlexGen hierarchical memory management | GPU/CPU/Disk tiers, access patterns | `core/single/cache_scheduling.py` |
-| **LRUScheduler** | Traditional | Least Recently Used scheduling | Access time tracking, simple eviction | `core/single/cache_scheduling.py` |
-| **LRUPlusScheduler** | Enhanced | Enhanced LRU with frequency and importance | Multi-factor scoring, weighted eviction | `core/single/cache_scheduling.py` |
-| **CacheSchedulingManager** | Unified | Unified scheduling management | Policy switching, statistics tracking | `core/single/cache_scheduling.py` |
+| **H2OScheduler** | Eviction | Heavy-Hitter Oracle scheduling | Attention accumulation, recency weighting | `core/single/cache_scheduling.py` |
+| **StreamingLLMScheduler** | Streaming | Streaming-optimized scheduling | Initial tokens + sliding window | `core/single/cache_scheduling.py` |
+| **QUESTScheduler** | Quality-Based | Quality-aware eviction scheduling | Reconstruction errors, utility scores | `core/single/cache_scheduling.py` |
+| **FlexGenScheduler** | Hierarchical | Multi-tier memory management | GPU/CPU/Disk hierarchy, cost-aware | `core/single/cache_scheduling.py` |
+| **LRUScheduler** | Classic | Least Recently Used eviction | Simple LRU policy, efficient tracking | `core/single/cache_scheduling.py` |
+| **LRUPlusScheduler** | Enhanced | Enhanced LRU with importance | Frequency + importance weighting | `core/single/cache_scheduling.py` |
 
-### 🔧 Additional Components
+### 🎓 Distillation Methods
+
+| Method | Type | Description | Key Features | Implementation |
+|--------|------|-------------|--------------|----------------|
+| **Classic KD** | Traditional | Standard knowledge distillation | Temperature scaling, KL divergence | `core/single/distillation.py` |
+| **MiniLLM** | Efficient | Lightweight distillation for LLMs | Policy gradient, reverse KL | `core/single/distillation.py` |
+| **DistillM** | Discriminative | Discriminative feature distillation | Feature alignment, adaptive weighting | `core/single/advanced_distillation.py` |
+| **DistillM-2** | Multi-Scale | Enhanced multi-scale distillation | Attention guidance, progressive learning | `core/single/advanced_distillation.py` |
+| **Speculative KD** | Speculative | Speculative knowledge distillation | Prediction verification, adaptive control | `core/single/advanced_distillation.py` |
+
+### 🧠 Core Components
 
 | Component | Type | Description | Key Features | Implementation |
 |-----------|------|-------------|--------------|----------------|
