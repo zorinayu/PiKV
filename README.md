@@ -47,7 +47,7 @@ chmod +x run_distributed.sh && \
 mkdir -p data checkpoints && \
 echo "Creating training data..." && \
 echo "The quick brown fox jumps over the lazy dog. Machine learning is fascinating." > data/train.txt && \
-torchrun --nproc_per_node=8 downstream_tasks/llm/next_tok_pred/train_distributed.py --epochs 5 --save_every 2 --model_type pikv
+torchrun --nproc_per_node=8 train_distributed.py --epochs 5 --save_every 2 --model_type pikv
 ```
 
 Example: Distributed transformers for next token prediction on 8 GPUs
