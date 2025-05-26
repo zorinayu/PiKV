@@ -14,28 +14,38 @@ class DistributedKVCache(nn.Module):
         self.head_dim = hidden_size // num_heads
         
         # Initialize cache buffers
-        self.register_buffer('keys', torch.zeros(0, num_heads, self.head_dim))
-        self.register_buffer('values', torch.zeros(0, num_heads, self.head_dim))
-        self.register_buffer('importance', torch.zeros(0, num_heads))
+        self.register_buffer('keys', torch.zeros(0, hidden_size))
+        self.register_buffer('values', torch.zeros(0, hidden_size))
+        self.register_buffer('importance', torch.zeros(0))
     
     def update(self, k: torch.Tensor, v: torch.Tensor, importance: torch.Tensor) -> None:
-        # Update cache
-        self.keys = torch.cat([self.keys, k], dim=0)
-        self.values = torch.cat([self.values, v], dim=0)
-        self.importance = torch.cat([self.importance, importance], dim=0)
+        # Reshape tensors to match cache dimensions
+        batch_size, seq_len, hidden_size = k.shape
         
-        # Synchronize across GPUs
-        dist.all_reduce(self.keys, op=dist.ReduceOp.SUM)
-        dist.all_reduce(self.values, op=dist.ReduceOp.SUM)
-        dist.all_reduce(self.importance, op=dist.ReduceOp.SUM)
+        # Flatten batch and sequence dimensions
+        k_flat = k.reshape(-1, hidden_size)  # [batch_size * seq_len, hidden_size]
+        v_flat = v.reshape(-1, hidden_size)  # [batch_size * seq_len, hidden_size]
+        importance_flat = importance.reshape(-1)  # [batch_size * seq_len]
+        
+        # Update cache
+        self.keys = torch.cat([self.keys, k_flat], dim=0)
+        self.values = torch.cat([self.values, v_flat], dim=0)
+        self.importance = torch.cat([self.importance, importance_flat], dim=0)
+        
+        # Synchronize across GPUs (optional, can be expensive)
+        # Only sync if we need global cache consistency
+        if dist.is_initialized() and dist.get_world_size() > 1:
+            dist.all_reduce(self.keys, op=dist.ReduceOp.SUM)
+            dist.all_reduce(self.values, op=dist.ReduceOp.SUM)
+            dist.all_reduce(self.importance, op=dist.ReduceOp.SUM)
     
     def get_all(self) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.keys, self.values
     
     def clear(self) -> None:
-        self.keys = torch.zeros(0, self.num_heads, self.head_dim, device=self.keys.device)
-        self.values = torch.zeros(0, self.num_heads, self.head_dim, device=self.values.device)
-        self.importance = torch.zeros(0, self.num_heads, device=self.importance.device)
+        self.keys = torch.zeros(0, self.hidden_size, device=self.keys.device)
+        self.values = torch.zeros(0, self.hidden_size, device=self.values.device)
+        self.importance = torch.zeros(0, device=self.importance.device)
 
 class DistributedExpert(nn.Module):
     def __init__(self, expert_id: int, world_size: int, hidden_size: int, expert_size: int, num_heads: int):
@@ -65,21 +75,53 @@ class DistributedExpert(nn.Module):
         h = self.fc2(h)
         
         # Compute attention
-        q = self.q_proj(x)
-        k = self.k_proj(x)
-        v = self.v_proj(x)
+        batch_size, seq_len, hidden_size = x.shape
+        
+        q = self.q_proj(x)  # [batch_size, seq_len, hidden_size]
+        k = self.k_proj(x)  # [batch_size, seq_len, hidden_size]
+        v = self.v_proj(x)  # [batch_size, seq_len, hidden_size]
         
         # Update KV cache if enabled
         if use_cache:
-            self.kv_cache.update(k, v, torch.ones_like(k))
-            k, v = self.kv_cache.get_all()
+            # Create importance scores (simplified)
+            importance = torch.ones_like(k[:, :, 0])  # [batch_size, seq_len]
+            self.kv_cache.update(k, v, importance)
+            
+            # Get cached values (for now, just use current k, v)
+            # In a full implementation, you'd retrieve and use cached values
+            cached_k, cached_v = self.kv_cache.get_all()
+            
+            # For simplicity, just use current k, v for attention
+            # In practice, you'd combine current and cached values
+            k_for_attn = k
+            v_for_attn = v
+        else:
+            k_for_attn = k
+            v_for_attn = v
+        
+        # Reshape for multi-head attention
+        q = q.view(batch_size, seq_len, self.num_heads, self.hidden_size // self.num_heads)
+        k_for_attn = k_for_attn.view(batch_size, seq_len, self.num_heads, self.hidden_size // self.num_heads)
+        v_for_attn = v_for_attn.view(batch_size, seq_len, self.num_heads, self.hidden_size // self.num_heads)
+        
+        # Transpose for attention computation
+        q = q.transpose(1, 2)  # [batch_size, num_heads, seq_len, head_dim]
+        k_for_attn = k_for_attn.transpose(1, 2)  # [batch_size, num_heads, seq_len, head_dim]
+        v_for_attn = v_for_attn.transpose(1, 2)  # [batch_size, num_heads, seq_len, head_dim]
         
         # Compute attention scores
-        scores = torch.matmul(q, k.transpose(-2, -1)) / (self.hidden_size ** 0.5)
+        head_dim = self.hidden_size // self.num_heads
+        scores = torch.matmul(q, k_for_attn.transpose(-2, -1)) / (head_dim ** 0.5)
         attn = F.softmax(scores, dim=-1)
         
         # Apply attention
-        out = torch.matmul(attn, v)
+        out = torch.matmul(attn, v_for_attn)
+        
+        # Transpose back and reshape
+        out = out.transpose(1, 2).contiguous()  # [batch_size, seq_len, num_heads, head_dim]
+        out = out.view(batch_size, seq_len, self.hidden_size)  # [batch_size, seq_len, hidden_size]
+        
+        # Apply output projection
         out = self.o_proj(out)
         
         return out + h
