@@ -31,7 +31,7 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 ### 1. LLM Next Token Prediction
 
-single GPU
+single GPU Training
 ```bash
 # Generate training and testing data
 python downstream_tasks/llm/next_tok_pred/generate_data.py
@@ -40,13 +40,17 @@ python downstream_tasks/llm/next_tok_pred/generate_data.py
 python downstream_tasks/llm/next_tok_pred/train_llm.py --model_type single --use_lora
 ```
 
-
-8 GPUs
+Distributed Training
 ```bash
-# Train distributed model with LoRA (using 8 GPUs)
-torchrun --nproc_per_node=4 downstream_tasks/llm/next_tok_pred/train_llm.py --model_type distributed --use_lora
+cd /mnt/workspace/PiKV/downstream_tasks/llm/next_tok_pred && \
+chmod +x run_distributed.sh && \
+mkdir -p data checkpoints && \
+echo "Creating training data..." && \
+echo "The quick brown fox jumps over the lazy dog. Machine learning is fascinating." > data/train.txt && \
+torchrun --nproc_per_node=8 downstream_tasks/llm/next_tok_pred/train_distributed.py --epochs 5 --save_every 2 --model_type pikv
 ```
-or
+
+Example: Distributed transformers for next token prediction on 8 GPUs
 ```bash
 torchrun --nproc_per_node=8 \
     --nnodes=1 \
