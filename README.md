@@ -955,25 +955,6 @@ If you use PiKV in your work, please cite:
 }
 ```
 
-## License
-
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
-
-### License Summary
-
-- ✅ **Commercial use** - You can use this software for commercial purposes
-- ✅ **Modification** - You can modify the source code
-- ✅ **Distribution** - You can distribute the software
-- ✅ **Patent use** - This license provides an express grant of patent rights from contributors
-- ✅ **Private use** - You can use this software for private purposes
-
-### Research and Academic Use
-
-If you use this software in academic research, please:
-1. Cite the relevant papers (see [Citation](#citation) section)
-2. Acknowledge the PiKV project contributors
-3. Comply with your institution's research ethics guidelines
-
 ### Contributing
 
 We are welcome to your valuable contribution to this projects!!!.
