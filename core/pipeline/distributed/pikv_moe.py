@@ -118,22 +118,41 @@ class DistributedPiKVMoE(nn.Module):
     
     def forward(self, x: torch.Tensor, use_cache: bool = True) -> Tuple[torch.Tensor, torch.Tensor]:
         # Get routing probabilities and top-k experts
-        routing_probs, top_k_indices, weights, load_balancing_loss = self.router(x)
+        # AdaptiveRouter returns 5 values: routing_probs, top_k_indices, weights, load_balancing_loss, importance
+        routing_result = self.router(x)
+        
+        if len(routing_result) == 5:
+            # AdaptiveRouter returns 5 values
+            routing_probs, top_k_indices, weights, load_balancing_loss, importance = routing_result
+        elif len(routing_result) == 4:
+            # Other routers return 4 values
+            routing_probs, top_k_indices, weights, load_balancing_loss = routing_result
+        else:
+            raise ValueError(f"Unexpected number of return values from router: {len(routing_result)}")
         
         # Initialize output
         out = torch.zeros_like(x)
         
         # Process through top-k experts
         for i in range(self.top_k):
-            expert_idx = top_k_indices[:, i]
-            expert_mask = torch.zeros(self.num_experts, device=x.device)
-            expert_mask.scatter_(0, expert_idx, weights[:, i])
+            expert_idx = top_k_indices[:, :, i]  # [batch_size, seq_len]
+            expert_weights = weights[:, :, i]    # [batch_size, seq_len]
             
             # Process through selected experts
             expert_out = torch.zeros_like(x)
             for j in range(self.num_experts):
-                if expert_mask[j] > 0:
-                    expert_out += expert_mask[j] * self.experts[j](x, use_cache)
+                # Create mask for this expert
+                expert_mask = (expert_idx == j).float()  # [batch_size, seq_len]
+                
+                if expert_mask.sum() > 0:  # Only process if this expert is selected
+                    # Get expert output
+                    expert_j_out = self.experts[j](x, use_cache)
+                    
+                    # Apply expert mask and weights
+                    expert_mask_expanded = expert_mask.unsqueeze(-1)  # [batch_size, seq_len, 1]
+                    expert_weights_expanded = expert_weights.unsqueeze(-1)  # [batch_size, seq_len, 1]
+                    
+                    expert_out += expert_j_out * expert_mask_expanded * expert_weights_expanded
             
             out += expert_out
         

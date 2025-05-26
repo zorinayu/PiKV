@@ -78,8 +78,8 @@ class TextDataset:
         with open(file_path, 'r', encoding='utf-8') as f:
             text = f.read()
         
-        # Tokenize text
-        tokens = tokenizer.encode(text)
+        # Tokenize text with truncation
+        tokens = tokenizer.encode(text, max_length=10000, truncation=True)  # Limit initial tokenization
         
         # Create sequences with fixed length
         self.sequences = []
@@ -90,6 +90,8 @@ class TextDataset:
                 input_sequence = sequence[:-1]  # All tokens except last
                 target_sequence = sequence[1:]  # All tokens except first
                 self.sequences.append((input_sequence, target_sequence))
+        
+        print(f"Created {len(self.sequences)} sequences of length {max_length-1}")
     
     def __len__(self):
         return len(self.sequences)
