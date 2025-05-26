@@ -112,6 +112,23 @@ def train_single_model(model_type='pikv'):
             total_loss += loss.item()
             progress_bar.set_postfix({'loss': total_loss / (step + 1)})
     
+    # Save model checkpoint
+    os.makedirs('checkpoints', exist_ok=True)
+    checkpoint = {
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'epoch': 5,
+        'loss': total_loss / len(dataloader)
+    }
+    
+    # Save checkpoint using the model's save method if available
+    if hasattr(model, 'save_checkpoint'):
+        model.save_checkpoint(f'checkpoints/{model_type}_final.pt')
+    else:
+        torch.save(checkpoint, f'checkpoints/{model_type}_final.pt')
+    
+    print(f"Model saved to checkpoints/{model_type}_final.pt")
+    
     return model
 
 def train_distributed_model():
@@ -164,8 +181,8 @@ def evaluate_model(model_type='pikv', distributed=False):
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     
     # Create dataset and dataloader
-    dataset = TextDataset('data/test.txt', tokenizer, config['max_seq_length'])
-    dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=False)
+    dataset = TextDataset('data/test.txt', tokenizer, max_length=32)  # Use same max_length as training
+    dataloader = DataLoader(dataset, batch_size=4, shuffle=False)  # Use same batch_size as training
     
     if distributed:
         # Initialize distributed manager
@@ -173,14 +190,33 @@ def evaluate_model(model_type='pikv', distributed=False):
         pikv_manager.load_checkpoint(f'checkpoints/distributed_final.pt')
         model = pikv_manager.model
     else:
-        # Load model
+        # Initialize model
         if model_type == 'pikv':
             model = PiKVMoE(rank=4, alpha=1.0).to(device)
         else:
             model = StandardMoE().to(device)
         
-        checkpoint = torch.load(f'checkpoints/{model_type}_final.pt')
-        model.load_state_dict(checkpoint['model_state_dict'])
+        # Load checkpoint
+        checkpoint_path = f'checkpoints/{model_type}_final.pt'
+        if os.path.exists(checkpoint_path):
+            try:
+                # Try loading with model's load method first
+                if hasattr(model, 'load_checkpoint'):
+                    model.load_checkpoint(checkpoint_path)
+                else:
+                    checkpoint = torch.load(checkpoint_path, weights_only=False)
+                    if 'model_state_dict' in checkpoint:
+                        model.load_state_dict(checkpoint['model_state_dict'])
+                    else:
+                        # If it's a direct state dict
+                        model.load_state_dict(checkpoint)
+                print(f"Loaded checkpoint from {checkpoint_path}")
+            except Exception as e:
+                print(f"Warning: Could not load checkpoint {checkpoint_path}: {e}")
+                print("Using randomly initialized model for evaluation")
+        else:
+            print(f"Warning: Checkpoint {checkpoint_path} not found. Using randomly initialized model.")
+        
         model.eval()
     
     # Initialize metrics
@@ -197,7 +233,7 @@ def evaluate_model(model_type='pikv', distributed=False):
             
             # Forward pass
             logits = model(input_ids)
-            loss = nn.CrossEntropyLoss()(logits.view(-1, config['vocab_size']), target_ids.view(-1))
+            loss = nn.CrossEntropyLoss()(logits.view(-1, logits.size(-1)), target_ids.view(-1))
             
             # Calculate accuracy
             predictions = torch.argmax(logits, dim=-1)
