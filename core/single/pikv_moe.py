@@ -74,6 +74,9 @@ class PiKVMoE(nn.Module):
         super(PiKVMoE, self).__init__()
         self.use_distillation = use_distillation
         
+        # Add embedding layer to handle token IDs
+        self.embedding = nn.Embedding(config['vocab_size'], config['hidden_size'])
+        
         self.experts = nn.ModuleList([
             LoRAExpert(config['hidden_size'], rank=rank, alpha=alpha)
             for _ in range(config['num_experts'])
@@ -181,6 +184,14 @@ class PiKVMoE(nn.Module):
         self.cache_ptrs[expert_idx] = (ptr + 1) % cache.size
     
     def forward(self, x, query=None, return_loss=False, targets=None, use_teacher=False):
+        # Handle both token IDs (2D) and embeddings (3D) as input
+        if len(x.shape) == 2:  # Token IDs: [batch_size, seq_len]
+            x = self.embedding(x)  # Convert to embeddings: [batch_size, seq_len, hidden_size]
+        elif len(x.shape) == 3:  # Already embeddings: [batch_size, seq_len, hidden_size]
+            pass
+        else:
+            raise ValueError(f"Input must be 2D (token IDs) or 3D (embeddings), got shape: {x.shape}")
+        
         # Convert input to float if it's not already
         if x.dtype != torch.float32:
             x = x.to(torch.float32)
