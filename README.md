@@ -525,7 +525,7 @@ This project is licensed under the **Apache License 2.0** - see the [LICENSE](LI
 
 ### 🌟 **Built with ❤️ by the PiKV Team**
 
-**[📧 Contact](mailto:team@pikv.ai) • [💬 Discussions](https://github.com/your-org/PiKV/discussions) • [🐛 Issues](https://github.com/your-org/PiKV/issues) • [📚 Docs](https://pikv.readthedocs.io)**
+**[📧 Contact](mailto:dong.liu.dl2367@yale.edu) • [💬 Discussions](https://github.com/NoakLiu/PiKV/discussions) • [🐛 Issues](https://github.com/NoakLiu/PiKV/issues) • [📚 Docs](https://github.com/NoakLiu/PiKV)**
 
 </div>
 
