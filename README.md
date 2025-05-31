@@ -492,18 +492,11 @@ We welcome contributions! Here's how you can help:
 If you use PiKV in your research, please cite our work:
 
 ```bibtex
-@article{pikv2024,
-  title={PiKV: Parallel Distributed Key-Value Cache Design with Routing for Large Language Models},
-  author={Your Name and Contributors},
-  journal={arXiv preprint arXiv:2024.xxxxx},
-  year={2024}
-}
-
-@inproceedings{pikv_routing2024,
-  title={Advanced Routing Strategies for Mixture-of-Experts with KV Cache Optimization},
-  author={Your Name and Contributors},
-  booktitle={Proceedings of NeurIPS 2024},
-  year={2024}
+@online{pikv2024,
+  title={PiKV: MoE KV Cache Management System},
+  author={Dong Liu, Xuhong Wang, Yanxuan Yu, Ben Lengerich, Ying Nian Wu},
+  url={https://github.com/NoakLiu/PiKV},
+  year={2025}
 }
 ```
 
