@@ -483,10 +483,6 @@ We welcome contributions! Here's how you can help:
 
 This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
 
----
-
-<div align="center">
-
 ## 📝 Citation
 
 If you use PiKV in your research, please cite our work:
@@ -499,6 +495,10 @@ If you use PiKV in your research, please cite our work:
   year={2025}
 }
 ```
+
+---
+
+<div align="center">
 
 ### 🌟 **Built with ❤️ by the PiKV Team**
 
