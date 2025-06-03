@@ -56,8 +56,6 @@ PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revo
 | **🧠 Smart Routing** | Advanced routing strategies for optimal expert selection | TopK, Adaptive, EPLB, Hierarchical |
 | **🗜️ Compression Engine** | Multi-strategy compression for memory efficiency | Pyramid, SVD, Quantization, Hybrid |
 | **⚡ Cache Scheduling** | Dynamic cache management policies | LRU, H2O, StreamingLLM, QUEST, FlexGen |
-| **🎓 Knowledge Distillation** | Advanced distillation techniques | DistillM, DistillM-2, Speculative KD |
-| **🔧 LoRA Integration** | Low-rank adaptation for efficient fine-tuning | Fully integrated with caching |
 | **🚀 CUDA Acceleration** | Custom kernels for maximum performance | Optimized routing and compression |
 
 ### 📈 Performance Metrics
