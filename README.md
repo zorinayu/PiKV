@@ -479,20 +479,12 @@ We welcome contributions! Here's how you can help:
 - 🧪 **Testing** - Add test cases, improve coverage
 - 🚀 **Performance** - Optimize algorithms, add CUDA kernels
 
-### 🔧 Development Guidelines
-
-- Follow [PEP 8](https://pep8.org/) style guide
-- Add type hints to all functions
-- Include docstrings for all public methods
-- Write tests for new features
-- Update documentation as needed
-
 ## 📝 Citation
 
 If you use PiKV in your research, please cite our work:
 
 ```bibtex
-@online{pikv2024,
+@online{pikv2025,
   title={PiKV: MoE KV Cache Management System},
   author={Dong Liu, Xuhong Wang, Yanxuan Yu, Ben Lengerich, Ying Nian Wu},
   url={https://github.com/NoakLiu/PiKV},
@@ -503,14 +495,6 @@ If you use PiKV in your research, please cite our work:
 ### 📋 License
 
 This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
-
-### ✅ License Features
-
-- ✅ **Commercial use** - Use in commercial applications
-- ✅ **Modification** - Modify the source code
-- ✅ **Distribution** - Distribute the software
-- ✅ **Patent use** - Express grant of patent rights
-- ✅ **Private use** - Use for private purposes
 
 ---
 
