@@ -263,6 +263,8 @@ print("Distillation training completed!")
 ```
 
 ### 🗜️ Compression Demonstration
+| **🎓 Knowledge Distillation** | Advanced distillation techniques | DistillM, DistillM-2, Speculative KD |
+| **🔧 LoRA Integration** | Low-rank adaptation for efficient fine-tuning | Fully integrated with caching |
 
 ```python
 from core.single.pikv_compression import PiKVCompressor
