@@ -12,6 +12,7 @@ PiKV Compression Module
 - FastVCompressor: FastV高效压缩
 - PyramidKVCompressor: PyramidKV层次化压缩
 - PiKVCompressor: 自适应综合压缩器
+- ChunkKVCompressor: 分块KV缓存压缩
 """
 
 import torch
@@ -32,6 +33,7 @@ class CompressionMethod(Enum):
     DISTILLATION = "distillation"
     FASTV = "fastv"
     PYRAMID_KV = "pyramid_kv"
+    CHUNK_KV = "chunk_kv"
 
 class BaseCompressor(nn.Module):
     """
@@ -1056,6 +1058,105 @@ class QuantizedCompressor(BaseCompressor):
             "group_size": self.group_size
         })
         return stats
+class ChunkKVCompressor(BaseCompressor):
+    """
+    ChunkKV 压缩器（完全自定义实现）
+    将 KV 序列划分为多个 chunk，对每个 chunk 计算重要性分数，保留重要 chunk。
+    参考自 ChunkKV: https://arxiv.org/abs/2502.00299
+    """
+    def __init__(
+        self,
+        hidden_size: int,
+        compression_ratio: float = 0.5,
+        chunk_length: int = 20,
+        scoring_mode: str = "mean"  # or "max"
+    ):
+        super().__init__(hidden_size, compression_ratio)
+        self.chunk_length = chunk_length
+        self.scoring_mode = scoring_mode
+
+        # 简单的打分器（可替换成更复杂的投影）
+        self.scoring_mlp = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_size // 2, 1)
+        )
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.scoring_mlp.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def _chunk_scores(self, hidden: torch.Tensor) -> torch.Tensor:
+        """
+        hidden: [B, T, D] → scores: [B, num_chunks]
+        """
+        B, T, D = hidden.shape
+        L = self.chunk_length
+        num_chunks = (T + L - 1) // L  # ceil division
+
+        pad_len = num_chunks * L - T
+        if pad_len > 0:
+            pad = torch.zeros(B, pad_len, D, device=hidden.device)
+            hidden = torch.cat([hidden, pad], dim=1)
+
+        # reshape to [B, num_chunks, L, D]
+        chunks = hidden.view(B, num_chunks, L, D)
+        scores = self.scoring_mlp(chunks)  # → [B, num_chunks, L, 1]
+        scores = scores.squeeze(-1)        # → [B, num_chunks, L]
+
+        if self.scoring_mode == "max":
+            chunk_scores = scores.max(dim=-1).values  # [B, num_chunks]
+        else:
+            chunk_scores = scores.mean(dim=-1)        # [B, num_chunks]
+
+        return chunk_scores  # [B, num_chunks]
+
+    def forward(
+        self,
+        keys: torch.Tensor,
+        values: torch.Tensor,
+        importance: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        keys, values: [B, T, D]
+        """
+        B, T, D = keys.shape
+        L = self.chunk_length
+        num_chunks = (T + L - 1) // L
+        keep_chunks = max(1, int(num_chunks * (1 - self.compression_ratio)))
+
+        # 得分基于 keys + values 的平均表示
+        combined = (keys + values) / 2
+        chunk_scores = self._chunk_scores(combined)  # [B, num_chunks]
+
+        topk = torch.topk(chunk_scores, keep_chunks, dim=-1).indices  # [B, keep_chunks]
+
+        # 构造 token 保留 mask
+        keep_mask = torch.zeros(B, num_chunks * L, device=keys.device, dtype=torch.bool)
+        for b in range(B):
+            for idx in topk[b]:
+                start = idx.item() * L
+                end = start + L
+                keep_mask[b, start:end] = True
+        keep_mask = keep_mask[:, :T]  # trim padding
+
+        # 应用 mask
+        keep_mask_exp = keep_mask.unsqueeze(-1).expand(-1, -1, D)
+        compressed_keys = keys[keep_mask_exp].view(B, -1, D)
+        compressed_values = values[keep_mask_exp].view(B, -1, D)
+
+        # 更新统计
+        original_size = keys.numel() + values.numel()
+        compressed_size = compressed_keys.numel() + compressed_values.numel()
+        self._update_stats(original_size, compressed_size)
+
+        return compressed_keys, compressed_values
+
 
 class PiKVCompressor(nn.Module):
     """
@@ -1071,7 +1172,7 @@ class PiKVCompressor(nn.Module):
     ):
         super(PiKVCompressor, self).__init__()
         self.hidden_size = hidden_size
-        self.compression_methods = compression_methods or ["lora", "pyramid_kv", "fastv", "distillation"]
+        self.compression_methods = compression_methods or ["lora", "pyramid_kv", "fastv", "distillation", "chunk_kv"]
         self.importance_threshold = importance_threshold
         self.adaptive_selection = adaptive_selection
         
@@ -1097,6 +1198,8 @@ class PiKVCompressor(nn.Module):
                 self.compressors[method] = FastVCompressor(hidden_size)
             elif method == "pyramid_kv":
                 self.compressors[method] = PyramidKVCompressor(hidden_size)
+            elif method == "chunk_kv":
+                self.compressors[method] = ChunkKVCompressor(hidden_size)
         
         # Method selection network
         if self.adaptive_selection:
