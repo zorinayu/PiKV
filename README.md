@@ -53,9 +53,9 @@ PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revo
 
 | Component | Description | Methods Available |
 |-----------|-------------|------------------|
-| **🧠 Smart Routing** | Advanced routing strategies for optimal expert selection | TopK, Adaptive, EPLB, Hierarchical |
-| **🗜️ Compression Engine** | Multi-strategy compression for memory efficiency | Pyramid, SVD, Quantization, Hybrid |
-| **⚡ Cache Scheduling** | Dynamic cache management policies | LRU, H2O, StreamingLLM, QUEST, FlexGen |
+| **🧠 Smart Routing** | Advanced routing strategies for optimal expert selection | BaseRouter, TopKBalancedRouter, AdaptiveRouter, PiKVRouter, EPLBRouter, HierarchicalRouter |
+| **🗜️ Compression Engine** | Multi-strategy compression for memory efficiency | PyramidCompressor, SVDCompressor, QuantizedCompressor, LoRACompressor, LoRaPlusPlusCompressor, PruningCompressor, DistillationCompressor, FastVCompressor, PyramidKVCompressor, ChunkKVCompressor, PiKVCompressor |
+| **⚡ Cache Scheduling** | Dynamic cache management policies | H2OScheduler, StreamingLLMScheduler, QUESTScheduler, FlexGenScheduler, LRUScheduler, LRUPlusScheduler, AdaKVScheduler, DuoAttentionScheduler |
 | **🚀 CUDA Acceleration** | Custom kernels for maximum performance | Optimized routing and compression |
 
 ### 📈 Performance Metrics
