@@ -9,6 +9,8 @@ PiKV Scheduling Module
 - LRUScheduler: 最近最少使用调度
 - LRUPlusScheduler: 增强LRU调度
 - CacheSchedulingManager: 统一调度管理器
+- AdaKV: 自适应KV缓存调度
+- DuoAttention: 双注意力调度
 """
 
 import torch
@@ -27,6 +29,8 @@ class SchedulingPolicy(Enum):
     FLEXGEN = "flexgen"
     LRU = "lru"
     LRU_PLUS = "lru_plus"
+    ADAKV = "adakv"
+    DUOATTENTION = "duoattention"
 
 class BaseScheduler(nn.Module):
     """基础缓存调度器"""
@@ -616,6 +620,95 @@ class LRUPlusScheduler(BaseScheduler):
         
         return evict_mask
 
+
+class AdaKVScheduler(BaseScheduler):
+    """
+    AdaKVScheduler：选择性保留注意力重要的 token（基于线性打分）
+    """
+    def __init__(self, cache_size: int, hidden_size: int,
+                 compression_ratio: float = 0.5, safeguard_ratio: float = 0.2):
+        super().__init__(cache_size, hidden_size)
+        self.compression_ratio = compression_ratio
+        self.safeguard_ratio = safeguard_ratio
+        self.register_buffer('importance_scores', torch.zeros(cache_size))
+
+        # 简单的线性重要性评分器
+        self.linear_proj = nn.Linear(hidden_size, 1)
+
+    def update_importance(self, indices: torch.Tensor, keys: torch.Tensor):
+        """更新重要性分数"""
+        scores = self.linear_proj(keys).squeeze(-1)
+        self.importance_scores[indices] = scores
+
+    def select_eviction_candidates(self, keys, values, metadata) -> torch.Tensor:
+        cache_len = keys.size(0)
+        if cache_len <= self.cache_size:
+            return torch.zeros(cache_len, dtype=torch.bool, device=keys.device)
+
+        scores = self.importance_scores[:cache_len]
+        num_keep = int(cache_len * (1 - self.compression_ratio))
+        num_safeguard = int(num_keep * self.safeguard_ratio)
+
+        # 保护最重要的一小部分 token 不被淘汰
+        _, safe_indices = torch.topk(scores, num_safeguard)
+
+        # 再根据剩余分数选出其余保留项
+        scores_clone = scores.clone()
+        scores_clone[safe_indices] = float('-inf')  # 避免重复选中
+        _, keep_indices = torch.topk(scores_clone, num_keep - num_safeguard)
+
+        all_keep = torch.cat([safe_indices, keep_indices]).unique()
+        evict_mask = torch.ones(cache_len, dtype=torch.bool, device=keys.device)
+        evict_mask[all_keep] = False
+
+        self.update_stats(eviction=evict_mask.any().item())
+        return evict_mask
+
+    def get_scheduler_stats(self) -> Dict[str, float]:
+        stats = super().get_scheduler_stats()
+        stats.update({
+            "compression_ratio": self.compression_ratio,
+            "safeguard_ratio": self.safeguard_ratio
+        })
+        return stats
+
+class DuoAttentionScheduler(BaseScheduler):
+    """
+    DuoAttentionScheduler：基于序列位置进行滑动窗口缓存
+    - Sink tokens（开头）保留
+    - Recent tokens（结尾）保留
+    - 中间 token 淘汰
+    """
+    def __init__(self, cache_size: int, hidden_size: int,
+                 sink_size: int = 64, recent_size: int = 512):
+        super().__init__(cache_size, hidden_size)
+        self.sink_size = sink_size
+        self.recent_size = recent_size
+
+    def select_eviction_candidates(self, keys, values, metadata) -> torch.Tensor:
+        cache_len = keys.size(0)
+        if cache_len <= self.cache_size:
+            return torch.zeros(cache_len, dtype=torch.bool, device=keys.device)
+
+        evict_mask = torch.ones(cache_len, dtype=torch.bool, device=keys.device)
+
+        # 保留 sink tokens
+        evict_mask[:self.sink_size] = False
+
+        # 保留 recent tokens
+        evict_mask[-self.recent_size:] = False
+
+        self.update_stats(eviction=evict_mask.any().item())
+        return evict_mask
+
+    def get_scheduler_stats(self) -> Dict[str, float]:
+        stats = super().get_scheduler_stats()
+        stats.update({
+            "sink_size": self.sink_size,
+            "recent_size": self.recent_size
+        })
+        return stats
+
 class CacheSchedulingManager(nn.Module):
     """
     统一的缓存调度管理器
@@ -658,6 +751,13 @@ class CacheSchedulingManager(nn.Module):
             return LRUScheduler(self.cache_size, self.hidden_size)
         elif policy == SchedulingPolicy.LRU_PLUS:
             return LRUPlusScheduler(self.cache_size, self.hidden_size)
+        elif policy == SchedulingPolicy.ADAKV:
+            return AdaKVScheduler(self.cache_size, self.hidden_size,
+                                compression_ratio=0.5, safeguard_ratio=0.2)
+
+        elif policy == SchedulingPolicy.DUOATTENTION:
+            return DuoAttentionScheduler(self.cache_size, self.hidden_size,
+                                        sink_size=64, recent_size=512)
         else:
             return None
     
@@ -668,6 +768,16 @@ class CacheSchedulingManager(nn.Module):
         
         if metadata is None:
             metadata = {}
+        
+        if hasattr(self.scheduler, 'update_importance'):
+            self.scheduler.update_importance(torch.tensor([idx]), key.unsqueeze(0))
+
+        if hasattr(self.scheduler, 'update_access_info'):
+            importance = metadata.get('importance', torch.tensor([0.5]))
+            if importance.dim() == 0:
+                importance = importance.unsqueeze(0)
+            self.scheduler.update_access_info(torch.tensor([idx]), importance)
+
         
         # 确保输入在正确设备上
         keys = keys.to(self.cache_keys.device)
