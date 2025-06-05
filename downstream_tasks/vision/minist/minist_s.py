@@ -4,6 +4,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
+from core.single.module.pikv_scheduling import CacheSchedulingManager, SchedulingPolicy
 
 # Modify the configuration for image data (MNIST)
 config = {
@@ -43,6 +44,13 @@ class PiKVMoE(nn.Module):
         # Cache size allocation for each layer
         self.cache_sizes = self.pyramidal_cache_allocation()
 
+        # Initialize PiKV cache manager
+        self.cache_manager = CacheSchedulingManager(
+            cache_size=config['kv_cache_size'],
+            hidden_size=config['hidden_size'],
+            policy=SchedulingPolicy.LRU  # Choose a policy
+        )
+
     def pyramidal_cache_allocation(self):
         """
         Calculate the cache size for each layer using the pyramidal allocation policy.
@@ -68,6 +76,10 @@ class PiKVMoE(nn.Module):
             expert_output += expert(x) * gate_probs[:, i].unsqueeze(-1)
             
         output = self.output_layer(expert_output)  # Final classification layer
+
+        # Update cache with the current hidden state
+        self.cache_manager.update_cache(x.unsqueeze(0), x.unsqueeze(0))
+
         return output
 
 # Define Convolutional Standard MoE Model for image data
