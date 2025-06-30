@@ -55,10 +55,10 @@ PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revo
 
 | Component | Description | Methods Available |
 |-----------|-------------|------------------|
-| **🧠 Smart Routing** | Advanced routing strategies for optimal expert selection | BaseRouter, TopKBalancedRouter, AdaptiveRouter, PiKVRouter, EPLBRouter, HierarchicalRouter |
-| **🗜️ Compression Engine** | Multi-strategy compression for memory efficiency | PyramidCompressor, SVDCompressor, QuantizedCompressor, LoRACompressor, LoRaPlusPlusCompressor, PruningCompressor, DistillationCompressor, FastVCompressor, PyramidKVCompressor, ChunkKVCompressor, PiKVCompressor |
-| **⚡ Cache Scheduling** | Dynamic cache management policies | H2OScheduler, StreamingLLMScheduler, QUESTScheduler, FlexGenScheduler, LRUScheduler, LRUPlusScheduler, AdaKVScheduler, DuoAttentionScheduler |
-| **🚀 CUDA Acceleration** | Custom kernels for maximum performance | Optimized routing and compression |
+| **PiKV Routing** | Advanced routing strategies for optimal expert selection | BaseRouter, TopKBalancedRouter, AdaptiveRouter, PiKVRouter, EPLBRouter, HierarchicalRouter |
+| **PikV Compression** | Multi-strategy compression for memory efficiency | PyramidCompressor, SVDCompressor, QuantizedCompressor, LoRACompressor, LoRaPlusPlusCompressor, PruningCompressor, DistillationCompressor, FastVCompressor, PyramidKVCompressor, ChunkKVCompressor, PiKVCompressor |
+| **PiKV Cache Scheduling** | Dynamic cache management policies | H2OScheduler, StreamingLLMScheduler, QUESTScheduler, FlexGenScheduler, LRUScheduler, LRUPlusScheduler, AdaKVScheduler, DuoAttentionScheduler |
+| **PiKV CUDA Acceleration** | Custom kernels for maximum performance | Optimized routing and compression |
 
 ### 📈 Performance Metrics
 
