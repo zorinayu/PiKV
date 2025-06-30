@@ -30,6 +30,8 @@
 - [🤝 Contributing](#-contributing)
 - [📝 Citation](#-citation)
 
+🔥🔥🔥 PiKV can be integrated with NVIDIA kvxpress for acceleration! Details check https://github.com/NoakLiu/PiKVpress.
+
 ## 🔥 Overview
 
 PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revolutionizes how large language models handle memory and attention mechanisms. Through innovative routing strategies, advanced compression techniques, and intelligent cache scheduling, PiKV achieves significant performance improvements while maintaining model quality.
