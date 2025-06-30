@@ -30,7 +30,7 @@
 - [🤝 Contributing](#-contributing)
 - [📝 Citation](#-citation)
 
-🔥🔥🔥 PiKV can be integrated with NVIDIA kvxpress for acceleration! Details check https://github.com/NoakLiu/PiKVpress.
+🔥🔥🔥 PiKV can be integrated with NVIDIA kvxpress for acceleration! Details check [Link](https://github.com/NoakLiu/PiKVpress).
 
 ## 🔥 Overview
 
