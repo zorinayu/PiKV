@@ -107,7 +107,7 @@ Lower **Accuracy-Drop ↓**, **Latency ↓**, **KV Mem ↓** and higher **Compre
 4. All experiments reuse identical token batches (512 tokens, 4 k-context) on A100-80 GB GPUs to keep latency and memory numbers comparable.   -->
 
 
-### 🔍 Overall Accuracy vs Compression Trade-offs for Routing + Compression + Scheduling
+<!-- ### 🔍 Overall Accuracy vs Compression Trade-offs for Routing + Compression + Scheduling
 
 | System Variant        | Routing            | Compression                 | Scheduling          | ΔAcc ↓ (Accuracy Drop) | Compression Rate ↑ | Notes                                 |
 |-----------------------|--------------------|------------------------------|----------------------|-------------------------|---------------------|----------------------------------------|
@@ -117,4 +117,4 @@ Lower **Accuracy-Drop ↓**, **Latency ↓**, **KV Mem ↓** and higher **Compre
 | **(D) Routing Only**   | ✅ PiKVRouter        | ❌ None                      | ❌ None               | ~1.3–1.5%               | 1.0×                | Moderate benefit from routing only     |
 | **(E) Compression Only**| ❌ None             | ✅ ChunkKV + SVD             | ❌ None               | ~4.8–5.5%               | 2.6–3.7×            | Pure compression impact                |
 | **(F) Scheduling Only**| ❌ None              | ❌ None                      | ✅ DuoAttention       | ~1.2–1.6%               | 1.0–2.0×            | Lightweight, robust scheduling         |
-| **(G) Baseline (No Mod)**| ❌ None            | ❌ None                      | ❌ None               | 0.0%                    | 1.0×                | Reference line for comparison          |
+| **(G) Baseline (No Mod)**| ❌ None            | ❌ None                      | ❌ None               | 0.0%                    | 1.0×                | Reference line for comparison          | -->
