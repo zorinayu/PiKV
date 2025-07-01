@@ -492,7 +492,7 @@ If you use PiKV in your research, please cite our work:
 ```bibtex
 @online{pikv2025,
   title={PiKV: MoE KV Cache Management System},
-  author={Dong Liu, Xuhong Wang, Yanxuan Yu, Ben Lengerich, Ying Nian Wu},
+  author={Dong Liu, Yanxuan Yu, Ben Lengerich, Ying Nian Wu, Xuhong Wang},
   url={https://github.com/NoakLiu/PiKV},
   year={2025}
 }
