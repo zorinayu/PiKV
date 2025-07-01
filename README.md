@@ -30,7 +30,8 @@
 - [🤝 Contributing](#-contributing)
 - [📝 Citation](#-citation)
 
-🔥🔥🔥 PiKV can be integrated with NVIDIA kvxpress for acceleration! Details check [PiKVpress](https://github.com/NoakLiu/PiKVpress).
+🔥🔥🔥 06/12/2025 PiKV has been ac acepted to ICML 2025 ES-FoMo III.
+🔥🔥🔥 07/01/2025 PiKV can be integrated with NVIDIA kvxpress for acceleration! Details check [PiKVpress](https://github.com/NoakLiu/PiKVpress).
 
 ## 🔥 Overview
 
@@ -461,7 +462,7 @@ python -m memory_profiler examples/simple_next_token_prediction.py
 nvprof python examples/transformers_kv_cache.py
 ```
 
-## 🤝 Contributing
+<!-- ## 🤝 Contributing
 
 We welcome contributions! Here's how you can help:
 
@@ -479,7 +480,7 @@ We welcome contributions! Here's how you can help:
 - ✨ **New Features** - Add new routing strategies, compression methods
 - 📚 **Documentation** - Improve docs, add examples
 - 🧪 **Testing** - Add test cases, improve coverage
-- 🚀 **Performance** - Optimize algorithms, add CUDA kernels
+- 🚀 **Performance** - Optimize algorithms, add CUDA kernels -->
 
 ### 📋 License
 
