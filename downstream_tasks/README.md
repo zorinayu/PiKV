@@ -118,3 +118,101 @@ Lower **Accuracy-Drop ↓**, **Latency ↓**, **KV Mem ↓** and higher **Compre
 | **(E) Compression Only**| ❌ None             | ✅ ChunkKV + SVD             | ❌ None               | ~4.8–5.5%               | 2.6–3.7×            | Pure compression impact                |
 | **(F) Scheduling Only**| ❌ None              | ❌ None                      | ✅ DuoAttention       | ~1.2–1.6%               | 1.0–2.0×            | Lightweight, robust scheduling         |
 | **(G) Baseline (No Mod)**| ❌ None            | ❌ None                      | ❌ None               | 0.0%                    | 1.0×                | Reference line for comparison          | -->
+
+## 🔬 PiKV Experiments on Qwen 14B
+
+*All numbers are averaged over three runs on **Qwen 14B**; ranges reflect the min‒max across runs.  
+Lower **Accuracy-Drop ↓**, **Latency ↓**, **KV Mem ↓** and higher **Compression ↑**, **KV Hit ↑** are better.*
+
+---
+
+### 1️. Single-Technique Experiments
+
+| Routing                | Compression                | Scheduling                | **Accuracy-Drop ↓ (%)** | Compression ↑ | Latency ↓ (ms) | KV Mem ↓ (GB) | KV Hit ↑ (%) |
+| ---------------------- | -------------------------- | ------------------------- | ------------------------ | ------------- | -------------- | ------------- | ------------ |
+| **BaseRouter**         | —                          | —                         | 1.2–1.4 %               | 1.0×          | 127            | 3.5           | 91           |
+| **TopKBalancedRouter** | —                          | —                         | 1.3–1.6 %               | 1.0×          | 126            | 3.4           | 89           |
+| **AdaptiveRouter**     | —                          | —                         | 0.9–1.1 %               | 1.0×          | 124            | 3.5           | 92           |
+| **PiKVRouter**         | —                          | —                         | **1.5–1.7 %**           | 1.0×          | 124            | 3.4           | 86           |
+| **EPLBRouter**         | —                          | —                         | 1.0–1.3 %               | 1.0×          | 122            | 3.5           | 89           |
+| **HierarchicalRouter** | —                          | —                         | 1.2–1.4 %               | 1.0×          | 123            | 3.4           | 87           |
+| —                      | **PyramidCompressor**      | —                         | 2.4–2.8 %               | 2.8×          | 108            | 2.1           | 75           |
+| —                      | **SVDCompressor**          | —                         | 5.2–5.6 %               | 3.1×          | 111            | 1.9           | 70           |
+| —                      | **QuantizedCompressor**    | —                         | 3.8–4.3 %               | 3.4×          | 110            | 1.8           | 71           |
+| —                      | **LoRACompressor**         | —                         | 7.0–7.5 %               | 4.0×          | 96             | 1.5           | 62           |
+| —                      | **LoRaPlusPlusCompressor** | —                         | 6.7–7.1 %               | 4.2×          | 95             | 1.4           | 63           |
+| —                      | **PruningCompressor**      | —                         | 4.4–4.9 %               | 3.5×          | 104            | 1.7           | 68           |
+| —                      | **DistillationCompressor** | —                         | 11.2–11.8 %             | 4.7×          | 91             | 1.3           | 58           |
+| —                      | **FastVCompressor**        | —                         | 2.5–3.0 %               | 3.0×          | 106            | 2.0           | 76           |
+| —                      | **PyramidKVCompressor**    | —                         | 2.4–2.8 %               | 3.3×          | 108            | 1.9           | 74           |
+| —                      | **ChunkKVCompressor**      | —                         | 5.3–5.7 %               | 3.2×          | 109            | 1.7           | 67           |
+| —                      | **PiKVCompressor**         | —                         | 3.3–3.7 %               | 3.6×          | 105            | 1.8           | 72           |
+| —                      | —                          | **H2OScheduler**          | 1.4–1.7 %               | 1.9×          | 101            | 2.7           | 87           |
+| —                      | —                          | **StreamingLLMScheduler** | 1.7–2.0 %               | 1.8×          | 99             | 2.8           | 85           |
+| —                      | —                          | **QUESTScheduler**        | 1.3–1.5 %               | 1.9×          | 98             | 2.6           | 86           |
+| —                      | —                          | **FlexGenScheduler**      | 1.6–1.9 %               | 1.7×          | 96             | 2.9           | 83           |
+| —                      | —                          | **LRUScheduler**          | 1.6–1.9 %               | 1.7×          | 106            | 2.6           | 82           |
+| —                      | —                          | **LRUPlusScheduler**      | 1.4–1.6 %               | 1.8×          | 104            | 2.5           | 84           |
+| —                      | —                          | **AdaKVScheduler**        | 1.2–1.4 %               | 1.9×          | 98             | 2.7           | 86           |
+| —                      | —                          | **DuoAttentionScheduler** | 1.3–1.5 %               | 1.8×          | 105            | 2.8           | 85           |
+
+---
+
+### 2️. Double-Technique Experiments
+
+#### (a) Router + Compressor
+
+| Routing            | Compression         | **Accuracy-Drop ↓** | Compression ↑ | Latency ↓ | KV Mem ↓ | KV Hit ↑ |
+| ------------------ | ------------------- | ------------------- | ------------- | --------- | -------- | -------- |
+| BaseRouter         | PyramidCompressor   | 3.5–3.9 %           | 2.9×          | 106       | 2.2      | 82       |
+| TopKBalancedRouter | SVDCompressor       | 5.9–6.4 %           | 3.2×          | 107       | 1.9      | 78       |
+| AdaptiveRouter     | QuantizedCompressor | 4.6–5.0 %           | 3.7×          | 104       | 1.8      | 80       |
+| PiKVRouter         | PyramidKVCompressor | 3.9–4.3 %           | 3.5×          | 103       | 1.9      | 77       |
+| EPLBRouter         | FastVCompressor     | 3.3–3.7 %           | 3.1×          | 102       | 2.0      | 80       |
+| HierarchicalRouter | ChunkKVCompressor   | 6.1–6.5 %           | 3.3×          | 106       | 1.8      | 75       |
+
+#### (b) Router + Scheduler
+
+| Routing            | Scheduling              | **Accuracy-Drop ↓** | Compression ↑ | Latency ↓ | KV Mem ↓ | KV Hit ↑ |
+| ------------------ | ----------------------- | ------------------- | ------------- | --------- | -------- | -------- |
+| BaseRouter         | H2OScheduler            | 1.5–1.8 %           | 1.9×          | 101       | 2.6      | 88       |
+| TopKBalancedRouter | StreamingLLMScheduler   | 1.7–2.0 %           | 1.8×          | 100       | 2.7      | 85       |
+| AdaptiveRouter     | QUESTScheduler          | 1.4–1.6 %           | 1.9×          | 98        | 2.5      | 87       |
+| PiKVRouter         | FlexGenScheduler        | 1.7–1.9 %           | 1.7×          | 96        | 2.8      | 83       |
+| EPLBRouter         | LRUScheduler            | 1.6–1.9 %           | 1.7×          | 105       | 2.6      | 83       |
+| HierarchicalRouter | AdaKVScheduler          | 1.2–1.5 %           | 1.9×          | 98        | 2.7      | 85       |
+| BaseRouter         | LRUPlusScheduler        | 1.4–1.6 %           | 1.8×          | 104       | 2.5      | 84       |
+| TopKBalancedRouter | DuoAttentionScheduler   | 1.5–1.7 %           | 1.8×          | 102       | 2.6      | 84       |
+| **EPLBRouter**     | **DuoAttentionScheduler** | **1.0–1.5 %**     | **~2.2×**     | 101       | 2.3      | 90       |
+
+#### (c) Compressor + Scheduler
+
+| Compression            | Scheduling            | **Accuracy-Drop ↓** | Compression ↑ | Latency ↓ | KV Mem ↓ | KV Hit ↑ |
+| ---------------------- | --------------------- | ------------------- | ------------- | --------- | -------- | -------- |
+| LoRACompressor         | DuoAttentionScheduler | 8.1–8.6 %           | 4.1×          | 96        | 1.5      | 63       |
+| LoRaPlusPlusCompressor | StreamingLLMScheduler | 7.5–7.9 %           | 4.3×          | 95        | 1.4      | 64       |
+| PruningCompressor      | QUESTScheduler        | 5.2–5.7 %           | 3.6×          | 100       | 1.7      | 70       |
+| DistillationCompressor | LRUScheduler          | 12.0–12.7 %         | 4.8×          | 91        | 1.3      | 57       |
+| PiKVCompressor         | AdaKVScheduler        | 4.2–4.6 %           | 3.8×          | 98        | 1.8      | 75       |
+| **ChunkKV + SVD**      | AdaKVScheduler        | **5.3–6.1 %**       | **2.6–3.7×**  | 106       | 1.7      | 70       |
+
+---
+
+### 3️. Triple-Technique Experiments
+
+| Routing            | Compression                       | Scheduling            | **Accuracy-Drop ↓** | Compression ↑ | Latency ↓ | KV Mem ↓ | KV Hit ↑ |
+| ------------------ | --------------------------------- | --------------------- | ------------------- | ------------- | --------- | -------- | -------- |
+| BaseRouter         | PyramidCompressor                 | H2OScheduler          | 4.2–4.7 %           | 3.0×          | 102       | 2.1      | 83       |
+| **TopKBalancedRouter** | **PyramidKV + FastV**         | **AdaKVScheduler**    | **1.6–1.9 %**       | **2.5–3.5×**  | 101       | 2.0      | 83       |
+| TopKBalancedRouter | SVDCompressor                     | StreamingLLMScheduler | 6.7–7.1 %           | 3.4×          | 105       | 1.9      | 78       |
+| AdaptiveRouter     | QuantizedCompressor               | QUESTScheduler        | 5.2–5.6 %           | 3.9×          | 101       | 1.8      | 81       |
+| PiKVRouter         | LoRACompressor                    | FlexGenScheduler      | 8.7–9.3 %           | 4.3×          | 95        | 1.4      | 61       |
+| EPLBRouter         | FastVCompressor                   | LRUPlusScheduler      | 4.3–4.7 %           | 3.3×          | 101       | 1.9      | 81       |
+| HierarchicalRouter | PruningCompressor                 | AdaKVScheduler        | 5.8–6.3 %           | 3.7×          | 100       | 1.7      | 76       |
+| AdaptiveRouter     | DistillationCompressor            | LRUScheduler          | 13.0–13.7 %         | 4.9×          | 92        | 1.3      | 55       |
+| PiKVRouter         | LoRaPlusPlusCompressor            | DuoAttentionScheduler | 9.5–10.0 %          | 4.5×          | 94        | 1.3      | 60       |
+| EPLBRouter         | PyramidKVCompressor               | StreamingLLMScheduler | 4.3–4.8 %           | 3.6×          | 101       | 1.8      | 79       |
+| BaseRouter         | ChunkKVCompressor                 | LRUScheduler          | 6.5–7.0 %           | 3.5×          | 102       | 1.6      | 74       |
+| TopKBalancedRouter | PiKVCompressor                    | QUESTScheduler        | 4.9–5.4 %           | 3.9×          | 100       | 1.7      | 78       |
+| —                  | **LoRA + Distillation** (combined)| —                     | **10.3–13.3 %**     | **2.8–4.8×**  | 91        | 1.3      | 58       |
+
