@@ -492,11 +492,14 @@ This project is licensed under the **Apache License 2.0** - see the [LICENSE](LI
 If you use PiKV in your research, please cite our work:
 
 ```bibtex
-@online{pikv2025,
-  title={PiKV: MoE KV Cache Management System},
-  author={Dong Liu, Yanxuan Yu, Ben Lengerich, Ying Nian Wu, Xuhong Wang},
-  url={https://github.com/NoakLiu/PiKV},
-  year={2025}
+@article{liu2025pikv,
+      title={PiKV: KV Cache Management System for Mixture of Experts}, 
+      author={Dong Liu and Yanxuan Yu and Ben Lengerich and Ying Nian Wu and Xuhong Wang},
+      year={2025},
+      eprint={2508.06526},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2508.06526}, 
 }
 ```
 
