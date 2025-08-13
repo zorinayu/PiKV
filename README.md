@@ -43,7 +43,7 @@ PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revo
 </div> -->
 
 <div align="center">
-<img src="assets/pikv_routing.png" alt="PiKV Routing Strategies" width="650"/>
+<img src="assets/pikv_routing.png" alt="PiKV Routing Strategies" width="360"/>
 <p><em>Figure 1: PiKV System Architecture - Complete Overview</em></p>
 </div>
 
@@ -89,7 +89,7 @@ PiKV (Quantized)         │ PiKV (Quantized)
 ### 📊 System Design Overview
 
 <div align="center">
-<img src="assets/pikv_algorithm.png" alt="PiKV Algorithm Flow" width="700"/>
+<img src="assets/pikv_algorithm.png" alt="PiKV Algorithm Flow" width="360"/>
 <p><em>Figure 2: PiKV System Workflow - From Input to Output</em></p>
 </div>
 
