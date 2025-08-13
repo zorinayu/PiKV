@@ -37,8 +37,13 @@
 
 PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revolutionizes how large language models handle memory and attention mechanisms. Through innovative routing strategies, advanced compression techniques, and intelligent cache scheduling, PiKV achieves significant performance improvements while maintaining model quality.
 
-<div align="center">
+<!-- <div align="center">
 <img src="assets/system_design.png" alt="PiKV System Design Overview" width="800"/>
+<p><em>Figure 1: PiKV System Architecture - Complete Overview</em></p>
+</div> -->
+
+<div align="center">
+<img src="assets/pikv_routing.png" alt="PiKV Routing Strategies" width="650"/>
 <p><em>Figure 1: PiKV System Architecture - Complete Overview</em></p>
 </div>
 
@@ -81,23 +86,19 @@ PiKV (Quantized)         │ PiKV (Quantized)
 
 ## 🏗️ System Architecture
 
-### 📊 Algorithm Flow
+### 📊 System Design Overview
 
 <div align="center">
 <img src="assets/pikv_algorithm.png" alt="PiKV Algorithm Flow" width="700"/>
-<p><em>Figure 2: PiKV Algorithm Flow - From Input to Output</em></p>
+<p><em>Figure 2: PiKV System Workflow - From Input to Output</em></p>
 </div>
 
-### 🔄 Routing Strategies
+<!-- ### 🔄 Routing Strategies
 
-PiKV employs sophisticated routing mechanisms to intelligently distribute tokens across experts:
+PiKV employs sophisticated routing mechanisms to intelligently distribute tokens across experts: -->
 
-<div align="center">
-<img src="assets/pikv_routing.png" alt="PiKV Routing Strategies" width="650"/>
-<p><em>Figure 3: Advanced Routing Strategies - TopK, Adaptive, EPLB, and Hierarchical</em></p>
-</div>
 
-### 🏛️ MoE Architecture Integration
+<!-- ### 🏛️ MoE Architecture Integration
 
 The Mixture-of-Experts architecture enhanced with KV cache optimization:
 
@@ -111,7 +112,7 @@ The Mixture-of-Experts architecture enhanced with KV cache optimization:
 <div align="center">
 <img src="assets/pikv_arch.png" alt="PiKV Complete Architecture" width="800"/>
 <p><em>Figure 5: Complete PiKV Architecture - All Components</em></p>
-</div>
+</div> -->
 
 ## 📦 Installation
 
