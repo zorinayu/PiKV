@@ -46,6 +46,44 @@ def process_with_pikv(input_tensor):
     return output
 ```
 
+### MoE策略集成
+
+PiKV支持集成多种先进的MoE策略，以满足不同应用场景的需求。这些策略实现在 `core/single/moe_strategies_fixed.py` 文件中。
+
+```python
+from core.single.moe_strategies_fixed import create_moe_router
+
+# 创建不同类型的MoE路由器
+flex_router = create_moe_router('flex', hidden_size=1024, num_experts=16, top_k=4)
+time_router = create_moe_router('time', hidden_size=1024, num_experts=8, top_k=2)
+fast_router = create_moe_router('fast', hidden_size=1024, num_experts=16, top_k=2)
+mixture_router = create_moe_router('mixture', hidden_size=1024, num_experts=8, top_k=2)
+
+# 使用示例
+def process_with_moe_strategies(input_tensor, strategy_type='flex'):
+    router = create_moe_router(strategy_type, hidden_size=1024, num_experts=8)
+    
+    if strategy_type == 'flex':
+        # 多模态数据
+        modality_info = {
+            'image': torch.randn(4, 128, 1024),
+            'genomic': torch.randn(4, 128, 1024)
+        }
+        dispatch, combine, probs, loss = router(input_tensor, modality_info)
+    elif strategy_type == 'time':
+        # 时间序列数据
+        time_info = {
+            'timestamps': torch.arange(128).float(),
+            'seasonality': torch.sin(torch.arange(128) * 2 * torch.pi / 24)
+        }
+        dispatch, combine, probs, loss = router(input_tensor, time_info)
+    else:
+        # 标准路由
+        dispatch, combine, probs, loss = router(input_tensor)
+    
+    return dispatch, combine, probs, loss
+```
+
 ### PiKV Compression
 
 PiKV Compression提供了多种压缩策略，用于优化KV缓存的内存使用。
