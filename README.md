@@ -10,7 +10,7 @@
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-[📚 Features](#-key-features) • [🚀 Installation](#-installation) • [💡 Examples](#-usage-examples) • [🔧 Advanced](#-advanced-features) • [📊 Benchmarks](#-benchmarks)
+[Features](#-key-features) • [Installation](#-installation) • [Examples](#-usage-examples) • [Advanced](#-advanced-features) • [Benchmarks](#-benchmarks)
 
 </div>
 
@@ -19,21 +19,20 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [🔥 Overview](#-overview)
-- [🎯 Key Features](#-key-features)  
-- [🏗️ System Architecture](#️-system-architecture)
-- [📦 Installation](#-installation)
-- [🚀 Quick Start](#-quick-start)
-- [💡 Usage Examples](#-usage-examples)
-- [🔧 Advanced Features](#-advanced-features)
-- [📊 Benchmarks](#-benchmarks)
-- [🛠️ Development](#️-development)
-- [🤝 Contributing](#-contributing)
-- [📝 Citation](#-citation)
+- [Overview](#-overview)
+- [Key Features](#-key-features)  
+- [System Architecture](#️-system-architecture)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Usage Examples](#-usage-examples)
+- [Advanced Features](#-advanced-features)
+- [Benchmarks](#-benchmarks)
+- [Development](#️-development)
+- [Citation](#-citation)
 
-## 🔥 Overview
+## Overview
 
 PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revolutionizes how large language models handle memory and attention mechanisms. Through innovative routing strategies, advanced compression techniques, and intelligent cache scheduling, PiKV achieves significant performance improvements while maintaining model quality.
 
@@ -47,18 +46,18 @@ PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revo
 <p><em>Figure 1: PiKV System Architecture - Complete Overview</em></p>
 </div>
 
-### 🌟 Why PiKV?
+### Why PiKV?
 
-- **🚀 Performance**: Up to 2.2x faster inference with 65% memory reduction
-- **🧠 Intelligence**: Advanced routing with importance-aware token distribution  
-- **🗜️ Efficiency**: Multi-strategy compression (Pyramid, SVD, Quantization, LoRA)
-- **⚡ Flexibility**: Dynamic cache scheduling with 7+ policies
-- **🎓 Learning**: State-of-the-art knowledge distillation techniques
-- **🔧 Advanced MoE**: Enhanced mixture-of-experts with normalization, LoRA, EPLB, and hierarchical routing
+- **Performance**: Up to 2.2x faster inference with 65% memory reduction
+- **Intelligence**: Advanced routing with importance-aware token distribution  
+- **Efficiency**: Multi-strategy compression (Pyramid, SVD, Quantization, LoRA)
+- **Flexibility**: Dynamic cache scheduling with 7+ policies
+- **Learning**: State-of-the-art knowledge distillation techniques
+- **Advanced MoE**: Enhanced mixture-of-experts with normalization, LoRA, EPLB, and hierarchical routing
 
-## 🎯 Key Features
+## Key Features
 
-### 🔮 Core Components
+### Core Components
 
 | Component | Description | Methods Available |
 |-----------|-------------|------------------|
@@ -67,7 +66,7 @@ PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revo
 | **PiKV Cache Scheduling** | Dynamic cache management policies | H2OScheduler, StreamingLLMScheduler, QUESTScheduler, FlexGenScheduler, LRUScheduler, LRUPlusScheduler, AdaKVScheduler, DuoAttentionScheduler |
 | **PiKV CUDA Acceleration** | Custom kernels for maximum performance | Optimized routing, compression, and cache operations |
 
-### 📈 Performance Metrics
+### Performance Metrics
 
 ```
 Memory Usage Reduction    │ Inference Speed Improvement
@@ -85,16 +84,16 @@ PiKV (Quantized)         │ PiKV (Quantized)
 ████ 35%                 │ ████████████ 2.2x  
 ```
 
-## 🏗️ System Architecture
+## System Architecture
 
-### 📊 System Design Overview
+### System Design Overview
 
 <div align="center">
 <img src="assets/pikv_algorithm.png" alt="PiKV Algorithm Flow" width="360"/>
 <p><em>Figure 2: PiKV System Workflow - From Input to Output</em></p>
 </div>
 
-### 🔄 Enhanced MoE Routing Strategies
+### Enhanced MoE Routing Strategies
 
 PiKV employs sophisticated routing mechanisms with advanced features:
 
@@ -104,7 +103,7 @@ PiKV employs sophisticated routing mechanisms with advanced features:
 - **Flex-MoE Router**: Multimodal learning with flexible routing
 - **Time-MoE Router**: Time series prediction with temporal awareness
 
-### 🏛️ Enhanced MoE Architecture
+### Enhanced MoE Architecture
 
 The Mixture-of-Experts architecture enhanced with advanced features:
 
@@ -119,23 +118,16 @@ The Mixture-of-Experts architecture enhanced with advanced features:
 <p><em>Figure 4: PiKV MoE with Integrated Cache System</em></p>
 </div>
 
-### 🎯 Complete Architecture
+## Installation
 
-<div align="center">
-<img src="assets/pikv_arch.png" alt="PiKV Complete Architecture" width="800"/>
-<p><em>Figure 5: Complete PiKV Architecture - All Components</em></p>
-</div>
-
-## 📦 Installation
-
-### 🔧 Prerequisites
+### Prerequisites
 
 - **Python**: 3.8 or higher
 - **PyTorch**: 2.0 or higher  
 - **CUDA**: 11.8+ (for GPU acceleration)
 - **Memory**: 8GB+ RAM (16GB+ recommended for large models)
 
-### ⚡ Quick Installation
+### Quick Installation
 
 ```bash
 # Clone the repository
@@ -149,7 +141,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-### 🐳 CUDA Extensions (Optional)
+### CUDA Extensions (Optional)
 
 For maximum performance, install custom CUDA kernels:
 
@@ -167,7 +159,7 @@ chmod +x build_cuda.sh
 ./build_cuda.sh install
 ```
 
-### 📋 Key Dependencies
+### Key Dependencies
 
 ```txt
 torch>=2.0.0
@@ -180,9 +172,9 @@ tqdm>=4.64.0
 cupy-cuda11x>=12.0.0  # For CUDA acceleration
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
-### 🎯 Basic Usage
+### Basic Usage
 
 ```python
 import torch
@@ -206,7 +198,7 @@ output, aux_loss = model(input_tensor)
 print(f"Output shape: {output.shape}")
 ```
 
-### ⚡ Enhanced MoE Examples
+### Enhanced MoE Examples
 
 ```python
 # EPLB MoE with load balancing
@@ -222,7 +214,7 @@ flex_moe = create_moe('flex', hidden_size=1024, num_experts=16, top_k=4, use_nor
 time_moe = create_moe('time', hidden_size=1024, num_experts=8, top_k=2, use_normalization=True)
 ```
 
-### 🔧 Component Verification
+### Component Verification
 
 Verify all components are working:
 
@@ -232,28 +224,28 @@ import sys; sys.path.append('.');
 from core.single.moe import create_moe;
 from core.single.pikv_compression import create_compressor;
 import torch;
-print('🚀 Testing PiKV Components...');
+print('Testing PiKV Components...');
 
 # Test enhanced MoE
 moe = create_moe('eplb', hidden_size=512, num_experts=8, use_normalization=True);
 x = torch.randn(2, 64, 512);
 output, aux_loss = moe(x);
-print(f'✅ Enhanced MoE operational: {output.shape}');
+print(f'Enhanced MoE operational: {output.shape}');
 
 # Test compression
 compressor = create_compressor('pikv', hidden_size=512, compression_methods=['lora', 'pyramid']);
 keys = torch.randn(2, 64, 512);
 values = torch.randn(2, 64, 512);
 compressed_keys, compressed_values = compressor(keys, values);
-print(f'✅ Compression operational: {compressed_keys.shape}');
+print(f'Compression operational: {compressed_keys.shape}');
 
-print('🎉 All systems operational!')
+print('All systems operational!')
 "
 ```
 
-## 💡 Usage Examples
+## Usage Examples
 
-### 🔥 Enhanced MoE with All Features
+### Enhanced MoE with All Features
 
 ```python
 from core.single.moe import create_moe
@@ -281,7 +273,7 @@ with torch.no_grad():
     output, aux_loss = model(input_data)
 ```
 
-### 🧠 Advanced Routing Strategies
+### Advanced Routing Strategies
 
 ```python
 # EPLB Router with load balancing
@@ -297,7 +289,7 @@ flex_moe = create_moe('flex', hidden_size=1024, num_experts=16, top_k=4, use_nor
 time_moe = create_moe('time', hidden_size=1024, num_experts=8, top_k=2, use_normalization=True)
 ```
 
-### 🗜️ Unified Compression System
+### Unified Compression System
 
 ```python
 from core.single.pikv_compression import create_compressor
@@ -321,7 +313,7 @@ stats = pikv_compressor.get_compression_stats()
 print(f"Compression stats: {stats}")
 ```
 
-### 🚀 CUDA Acceleration
+### CUDA Acceleration
 
 ```python
 from core.cuda.pikv_cuda import PiKVCUDA
@@ -341,9 +333,9 @@ if PiKVCUDA.is_cuda_available():
     print(f"CUDA-accelerated routing: {router_logits.shape}")
 ```
 
-## 🔧 Advanced Features
+## Advanced Features
 
-### 🎛️ Enhanced MoE Features
+### Enhanced MoE Features
 
 ```python
 # Enable all advanced features
@@ -361,7 +353,7 @@ model = create_moe(
 )
 ```
 
-### 🔄 Advanced Routing Strategies
+### Advanced Routing Strategies
 
 ```python
 # EPLB Router with load balancing
@@ -377,7 +369,7 @@ flex_moe = create_moe('flex', hidden_size=1024, num_experts=16, top_k=4, use_nor
 time_moe = create_moe('time', hidden_size=1024, num_experts=8, top_k=2, use_normalization=True)
 ```
 
-### 🎓 Advanced Compression Methods
+### Advanced Compression Methods
 
 ```python
 from core.single.pikv_compression import create_compressor
@@ -395,7 +387,7 @@ compressor = create_compressor(
 compressed_keys, compressed_values = compressor(keys, values, importance)
 ```
 
-### 🚀 CUDA Kernel Features
+### CUDA Kernel Features
 
 ```bash
 # Build CUDA kernels with different optimization levels
@@ -410,9 +402,9 @@ compressed_keys, compressed_values = compressor(keys, values, importance)
 ./build_cuda.sh install
 ```
 
-## 📊 Benchmarks
+## Benchmarks
 
-### 🏃‍♂️ Running Benchmarks
+### Running Benchmarks
 
 ```bash
 # Comprehensive model comparison
@@ -428,7 +420,7 @@ cd core/cuda && make test
 python downstream_tasks/llm/next_tok_pred/s_ablation.py
 ```
 
-### 📈 Performance Results
+### Performance Results
 
 | Metric | Standard MoE | PiKV (No Compress) | PiKV (Pyramid) | PiKV (Quantized) | PiKV (Enhanced) |
 |--------|--------------|-------------------|----------------|------------------|------------------|
@@ -437,17 +429,17 @@ python downstream_tasks/llm/next_tok_pred/s_ablation.py
 | **Model Quality** | 100% | 99% | 98% | 94% | 96% |
 | **Training Stability** | 100% | 100% | 100% | 95% | 98% |
 
-### 🎯 Enhanced MoE Analysis
+### Enhanced MoE Analysis
 
 | Feature | Standard MoE | PiKV Enhanced | Improvement |
 |---------|--------------|----------------|-------------|
-| **Normalization** | ❌ | ✅ | +15% stability |
-| **LoRA Integration** | ❌ | ✅ | +20% efficiency |
-| **Load Balancing** | ❌ | ✅ | +25% utilization |
-| **Hierarchical Routing** | ❌ | ✅ | +30% scalability |
-| **Multimodal Support** | ❌ | ✅ | +40% flexibility |
+| **Normalization** | No | Yes | +15% stability |
+| **LoRA Integration** | No | Yes | +20% efficiency |
+| **Load Balancing** | No | Yes | +25% utilization |
+| **Hierarchical Routing** | No | Yes | +30% scalability |
+| **Multimodal Support** | No | Yes | +40% flexibility |
 
-### 🎯 Compression Analysis
+### Compression Analysis
 
 | Method | Compression Ratio | Speed Gain | Quality Retention | Use Case |
 |--------|------------------|------------|------------------|----------|
@@ -459,9 +451,9 @@ python downstream_tasks/llm/next_tok_pred/s_ablation.py
 | **FastV** | 3.5x | 1.9x | 95% | Vector quantization |
 | **PiKV Unified** | 2.8x | 1.9x | 97% | Best overall |
 
-## 🛠️ Development
+## Development
 
-### 🧪 Running Tests
+### Running Tests
 
 ```bash
 # Run all tests
@@ -477,7 +469,7 @@ cd core/cuda && make test
 python -c "from core.single.pikv_compression import create_compressor; print('Compression tests passed')"
 ```
 
-### 🔧 Building CUDA Extensions
+### Building CUDA Extensions
 
 ```bash
 # Build custom CUDA kernels
@@ -491,7 +483,7 @@ make release
 nvprof ./test_pikv_kernels
 ```
 
-### 📊 Profiling
+### Profiling
 
 ```bash
 # Profile memory usage
@@ -511,32 +503,9 @@ print('Enhanced MoE profiling completed');
 "
 ```
 
-## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
 
-### 🎯 Quick Contribution Guide
-
-1. **🍴 Fork** the repository
-2. **🌿 Create** a feature branch: `git checkout -b feature/amazing-feature`
-3. **✨ Commit** your changes: `git commit -m 'Add amazing feature'`
-4. **🚀 Push** to branch: `git push origin feature/amazing-feature`
-5. **📋 Open** a Pull Request
-
-### 💡 Areas for Contribution
-
-- 🐛 **Bug Fixes** - Help us identify and fix issues
-- ✨ **New Features** - Add new routing strategies, compression methods
-- 📚 **Documentation** - Improve docs, add examples
-- 🧪 **Testing** - Add test cases, improve coverage
-- 🚀 **Performance** - Optimize algorithms, add CUDA kernels
-- 🔧 **MoE Enhancements** - Improve routing, normalization, LoRA integration
-
-### 📋 License
-
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
-
-## 📝 Citation
+## Citation
 
 If you use PiKV in your research, please cite our work:
 
@@ -556,9 +525,9 @@ If you use PiKV in your research, please cite our work:
 
 <div align="center">
 
-### 🌟 **Built with ❤️ by the PiKV Team**
+### **Built with ❤️ by the PiKV Team**
 
-**[📧 Contact](mailto:dong.liu.dl2367@yale.edu) • [💬 Discussions](https://github.com/NoakLiu/PiKV/discussions) • [🐛 Issues](https://github.com/NoakLiu/PiKV/issues) • [📚 Docs](https://github.com/NoakLiu/PiKV)**
+**[Contact](mailto:dong.liu.dl2367@yale.edu) • [Discussions](https://github.com/NoakLiu/PiKV/discussions) • [Issues](https://github.com/NoakLiu/PiKV/issues) • [Docs](https://github.com/NoakLiu/PiKV)**
 
 </div>
 
