@@ -195,7 +195,7 @@ def example_compression_integration():
     print("-" * 50)
     
     try:
-        from unified_compression import create_compressor
+        from pikv_compression import create_compressor
         
         # Create different compressors
         lora_compressor = create_compressor('lora', hidden_size=512, rank=16)
