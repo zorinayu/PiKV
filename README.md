@@ -93,7 +93,7 @@ PiKV (Quantized)         │ PiKV (Quantized)
 <p><em>Figure 2: PiKV System Workflow - From Input to Output</em></p>
 </div>
 
-### Enhanced MoE Routing Strategies
+### PiKV Routing Strategies
 
 PiKV employs sophisticated routing mechanisms with advanced features:
 
@@ -103,7 +103,7 @@ PiKV employs sophisticated routing mechanisms with advanced features:
 - **Flex-MoE Router**: Multimodal learning with flexible routing
 - **Time-MoE Router**: Time series prediction with temporal awareness
 
-### Enhanced MoE Architecture
+### PiKV MoE Architecture
 
 The Mixture-of-Experts architecture enhanced with advanced features:
 
@@ -113,10 +113,10 @@ The Mixture-of-Experts architecture enhanced with advanced features:
 - **Hierarchical Design**: Scalable expert organization
 - **Knowledge Distillation**: Teacher-student learning framework
 
-<div align="center">
+<!-- <div align="center">
 <img src="assets/pikv_moe.png" alt="PiKV MoE Architecture" width="700"/>
 <p><em>Figure 4: PiKV MoE with Integrated Cache System</em></p>
-</div>
+</div> -->
 
 ## Installation
 
