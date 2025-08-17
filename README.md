@@ -14,8 +14,10 @@
 
 </div>
 
-- 🔥🔥🔥 06/12/2025 PiKV has been accepted to ICML 2025 ES-FoMo III.
+- 🔥🔥🔥 08/17/2025 PiKV now supports FastMoE and FasterMoE.
+- 🔥🔥🔥 08/10/2025 PiKV now supports FlexMoE and TimeMoE.
 - 🔥🔥🔥 07/01/2025 PiKV can be integrated with NVIDIA kvxpress for acceleration! Details check [PiKVpress](https://github.com/NoakLiu/PiKVpress).
+- 🔥🔥🔥 06/12/2025 PiKV has been accepted to ICML 2025 ES-FoMo III.
 
 ---
 
