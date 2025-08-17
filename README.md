@@ -61,7 +61,7 @@ PiKV is a cutting-edge **Parallel Distributed Key-Value Cache Design** that revo
 
 | Component | Description | Methods Available |
 |-----------|-------------|------------------|
-| **Enhanced PiKV MoE** | Advanced MoE with normalization, LoRA, and multiple routing strategies | BaseRouter, EPLBRouter, HierarchicalRouter, FlexMoERouter, TimeMoERouter |
+| **Enhanced PiKV MoE** | Advanced MoE with normalization, LoRA, and multiple routing strategies | BaseRouter, EPLBRouter, HierarchicalRouter, FlexMoERouter, TimeMoERouter, FastMoERouter, FasterMoERouter |
 | **PiKV Compression** | Unified compression with multiple strategies | LoRACompressor, PyramidCompressor, SVDCompressor, QuantizedCompressor, FastVCompressor, PiKVCompressor |
 | **PiKV Cache Scheduling** | Dynamic cache management policies | H2OScheduler, StreamingLLMScheduler, QUESTScheduler, FlexGenScheduler, LRUScheduler, LRUPlusScheduler, AdaKVScheduler, DuoAttentionScheduler |
 | **PiKV CUDA Acceleration** | Custom kernels for maximum performance | Optimized routing, compression, and cache operations |
@@ -102,6 +102,8 @@ PiKV employs sophisticated routing mechanisms with advanced features:
 - **Hierarchical Router**: Multi-level routing for large-scale expert systems
 - **Flex-MoE Router**: Multimodal learning with flexible routing
 - **Time-MoE Router**: Time series prediction with temporal awareness
+- **FastMoE Router**: High-performance MoE with dynamic shadowing and smart scheduling
+- **FasterMoE Router**: Optimized MoE with hierarchical intelligent routing and performance tracking
 
 ### PiKV MoE Architecture
 
@@ -287,6 +289,14 @@ flex_moe = create_moe('flex', hidden_size=1024, num_experts=16, top_k=4, use_nor
 
 # Time-MoE for time series prediction
 time_moe = create_moe('time', hidden_size=1024, num_experts=8, top_k=2, use_normalization=True)
+
+# FastMoE with dynamic shadowing and smart scheduling
+fastmoe = create_moe('fastmoe', hidden_size=1024, num_experts=8, top_k=2, 
+                     enable_dynamic_shadowing=True, enable_fuse=True)
+
+# FasterMoE with hierarchical intelligent routing
+fastermoe = create_moe('fastermoe', hidden_size=1024, num_experts=8, top_k=2,
+                       enable_dynrep=True, enable_fuse=True, enable_hir_gate=True)
 ```
 
 ### Unified Compression System
@@ -367,6 +377,14 @@ flex_moe = create_moe('flex', hidden_size=1024, num_experts=16, top_k=4, use_nor
 
 # Time-MoE for time series
 time_moe = create_moe('time', hidden_size=1024, num_experts=8, top_k=2, use_normalization=True)
+
+# FastMoE with dynamic shadowing and smart scheduling
+fastmoe = create_moe('fastmoe', hidden_size=1024, num_experts=8, top_k=2, 
+                     enable_dynamic_shadowing=True, enable_fuse=True)
+
+# FasterMoE with hierarchical intelligent routing
+fastermoe = create_moe('fastermoe', hidden_size=1024, num_experts=8, top_k=2,
+                       enable_dynrep=True, enable_fuse=True, enable_hir_gate=True)
 ```
 
 ### Advanced Compression Methods
@@ -438,6 +456,8 @@ python downstream_tasks/llm/next_tok_pred/s_ablation.py
 | **Load Balancing** | No | Yes | +25% utilization |
 | **Hierarchical Routing** | No | Yes | +30% scalability |
 | **Multimodal Support** | No | Yes | +40% flexibility |
+| **FastMoE Optimizations** | No | Yes | +35% performance |
+| **FasterMoE Features** | No | Yes | +45% efficiency |
 
 ### Compression Analysis
 
